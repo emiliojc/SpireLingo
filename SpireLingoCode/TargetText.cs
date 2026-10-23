@@ -99,7 +99,8 @@ public static class TargetText
 /// Whenever the game loads a loc file in its own language, also loads the same file in the target
 /// language. The game loads English first underneath every language, so English often arrives on its own.
 /// </summary>
-[HarmonyPatch(typeof(LocManager), nameof(LocManager.LoadTable))]
+// LoadTable is private, so it is named by string.
+[HarmonyPatch(typeof(LocManager), "LoadTable")]
 static class CaptureTargetTablesPatch
 {
     [ThreadStatic] private static bool _loadingTarget;
@@ -141,7 +142,7 @@ static class CaptureTargetTablesPatch
     {
         try
         {
-            var method = AccessTools.Method(typeof(LocManager), nameof(LocManager.LoadTable));
+            var method = AccessTools.Method(typeof(LocManager), "LoadTable");
             var instance = method.IsStatic ? null : LocManager.Instance;
             if (!method.IsStatic && instance == null) return null;
             return method.Invoke(instance, [path]) as Dictionary<string, string>;

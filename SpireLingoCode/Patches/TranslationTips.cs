@@ -106,13 +106,23 @@ static class TranslationTips
     /// </summary>
     private static readonly ConditionalWeakTable<CardModel, object?[]> LastDescriptionArgs = new();
 
-    private static readonly MethodInfo? GetDescriptionForPile = AccessTools.Method(typeof(CardModel),
-        nameof(CardModel.GetDescriptionForPile), [typeof(PileType), typeof(CardModel.DescriptionPreviewType), typeof(Creature)]);
+    // CardModel.DescriptionPreviewType is not public, so the overload is found by its parameter types' names.
+    private static readonly MethodInfo? GetDescriptionForPile = AccessTools.GetDeclaredMethods(typeof(CardModel))
+        .FirstOrDefault(m => m.Name == "GetDescriptionForPile" && m.GetParameters() is [
+            { ParameterType: var pile }, { ParameterType: var preview }, { ParameterType: var target }
+        ] && pile == typeof(PileType) && preview.Name == "DescriptionPreviewType" && target == typeof(Creature));
 
-    [HarmonyPatch(typeof(CardModel), nameof(CardModel.GetDescriptionForPile),
-        typeof(PileType), typeof(CardModel.DescriptionPreviewType), typeof(Creature))]
+    [HarmonyPatch]
     private static class RememberCardDescriptionArgs
     {
+        static bool Prepare()
+        {
+            if (GetDescriptionForPile == null) MainFile.Logger.Warn("CardModel.GetDescriptionForPile not found; card tooltips will show names only.");
+            return GetDescriptionForPile != null;
+        }
+
+        static MethodBase TargetMethod() => GetDescriptionForPile!;
+
         [HarmonyPostfix]
         static void Postfix(CardModel __instance, object?[] __args)
         {
