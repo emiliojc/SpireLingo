@@ -106,8 +106,10 @@ public partial class DiscoveryMode : CanvasLayer
                     _lastHoverMs = Time.GetTicksMsec();
                     _hovered = Find(mouse);
                 }
-                // Movement still reaches the game, so its tooltips open and close as usual.
-                return;
+                // Movement still reaches the game, so its tooltips open and close as usual, except while a word
+                // is selected: then the game keeps its hover (a lifted card stays lifted) until the popup closes.
+                if (_selected == null) return;
+                break;
             case InputEventMouseButton { ButtonIndex: MouseButton.Left, Pressed: true }:
                 _hovered = Find(mouse);
                 Select(_hovered);
