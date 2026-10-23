@@ -162,50 +162,58 @@ static class TranslationTips
     }
 
     /// <summary>
-    /// An intent hands its creature a single tip to show, so the translation is added on the way
-    /// into <see cref="NCreature.ShowHoverTips"/> while that intent is being hovered.
+    /// The game builds an intent's tip with <see cref="AbstractIntent.GetHoverTip"/> both when the intent
+    /// icon is hovered and when the creature is (as part of <see cref="Creature.HoverTips"/>), then shows the
+    /// list with <see cref="NCreature.ShowHoverTips"/>. Each built tip's translation is remembered here and
+    /// placed right after it when the list is shown.
     /// </summary>
-    [ThreadStatic] private static NIntent? _hoveredIntent;
+    [ThreadStatic] private static List<(HoverTip original, IHoverTip translation)>? _pendingIntentTips;
 
-    private static readonly AccessTools.FieldRef<NIntent, AbstractIntent?> IntentField = AccessTools.FieldRefAccess<NIntent, AbstractIntent?>("_intent");
-    private static readonly AccessTools.FieldRef<NIntent, IEnumerable<Creature>?> TargetsField = AccessTools.FieldRefAccess<NIntent, IEnumerable<Creature>?>("_targets");
-    private static readonly AccessTools.FieldRef<NIntent, Creature?> OwnerField = AccessTools.FieldRefAccess<NIntent, Creature?>("_owner");
-
-    // OnHovered is private, so it is named by string.
-    [HarmonyPatch(typeof(NIntent), "OnHovered")]
-    private static class IntentHovered
+    [HarmonyPatch(typeof(AbstractIntent), nameof(AbstractIntent.GetHoverTip))]
+    private static class IntentTipBuilt
     {
-        [HarmonyPrefix]
-        static void Prefix(NIntent __instance) => _hoveredIntent = __instance;
-
-        [HarmonyFinalizer]
-        static void Finalizer() => _hoveredIntent = null;
-    }
-
-    [HarmonyPatch(typeof(NCreature), nameof(NCreature.ShowHoverTips))]
-    private static class IntentTips
-    {
-        [HarmonyPrefix]
-        static void Prefix(ref IEnumerable<IHoverTip> hoverTips)
+        [HarmonyPostfix]
+        static void Postfix(AbstractIntent __instance, IEnumerable<Creature> targets, Creature owner, HoverTip __result)
         {
-            var node = _hoveredIntent;
-            if (node == null || !SpireLingoConfig.ShowOnIntents || TargetText.IsActive || !TargetText.IsUseful) return;
+            if (!SpireLingoConfig.ShowOnIntents || TargetText.IsActive || !TargetText.IsUseful) return;
 
-            var intent = IntentField(node);
-            var owner = OwnerField(node);
-            if (intent == null || owner == null) return;
-            var targets = TargetsField(node) ?? [];
-
+            var intent = __instance;
             try
             {
                 // The damage and hit count come from the same calculation the intent label uses.
                 var tip = TargetText.Format(() => intent.GetHoverTip(targets, owner));
-                hoverTips = hoverTips.Append(MakeTip(tip.Title ?? "", tip.Description ?? "", $"INTENT-{intent.IntentType}"));
+                (_pendingIntentTips ??= []).Add((__result,
+                    MakeTip(tip.Title ?? "", tip.Description ?? "", $"INTENT-{intent.IntentType}")));
             }
             catch (Exception e)
             {
                 MainFile.Logger.Warn($"Could not translate intent {intent.GetType().Name}: {e.Message}");
             }
+        }
+    }
+
+    [HarmonyPatch(typeof(NCreature), nameof(NCreature.ShowHoverTips))]
+    private static class IntentTipsShown
+    {
+        [HarmonyPrefix]
+        static void Prefix(ref IEnumerable<IHoverTip> hoverTips)
+        {
+            var pending = _pendingIntentTips;
+            if (pending is not { Count: > 0 }) return;
+
+            var tips = new List<IHoverTip>();
+            foreach (var tip in hoverTips)
+            {
+                tips.Add(tip);
+                if (tip is not HoverTip shown) continue;
+                var index = pending.FindIndex(p => p.original.Id == shown.Id && p.original.Description == shown.Description);
+                if (index < 0) continue;
+                tips.Add(pending[index].translation);
+                pending.RemoveAt(index);
+            }
+            // Tips built for anything that was not shown are dropped, so they cannot match a later list.
+            pending.Clear();
+            hoverTips = tips;
         }
     }
 }
