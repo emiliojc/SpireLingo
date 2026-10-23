@@ -1,5 +1,7 @@
 using Godot;
+using MegaCrit.Sts2.Core.HoverTips;
 using MegaCrit.Sts2.Core.Localization;
+using MegaCrit.Sts2.Core.Nodes.HoverTips;
 
 namespace SpireLingo.SpireLingoCode.Discovery;
 
@@ -109,6 +111,32 @@ internal static class Ui
     {
         control.MouseEntered += () => control.Scale = new Vector2(1.1f, 1.1f);
         control.MouseExited += () => control.Scale = Vector2.One;
+    }
+
+    /// <summary>
+    /// The discovery button's tooltip in the game's own style, like the top bar's Deck button: a title with the
+    /// key in brackets and a line of description, shown just below the button while it is hovered.
+    /// </summary>
+    public static void AttachDiscoveryTip(Control button, Func<string> key)
+    {
+        button.MouseEntered += () =>
+        {
+            try
+            {
+                var title = new LocString("gameplay_ui", "SPIRELINGO-DISCOVERY.button_title");
+                title.Add("Hotkey", key());
+                var tip = new HoverTip(title, new LocString("gameplay_ui", "SPIRELINGO-DISCOVERY.button_desc"));
+                var set = NHoverTipSet.CreateAndShow(button, tip, HoverTipAlignment.None);
+                if (set == null) return;
+                var origin = button.GetGlobalTransformWithCanvas().Origin;
+                set.GlobalPosition = new Vector2(origin.X + button.Size.X - set.Size.X, origin.Y + button.Size.Y + 8);
+            }
+            catch (Exception e)
+            {
+                MainFile.Logger.Warn($"Discovery: could not show the button's tooltip: {e.Message}");
+            }
+        };
+        button.MouseExited += () => NHoverTipSet.Remove(button);
     }
 
     public static string Escape(string text) => text.Replace("[", "[lb]");

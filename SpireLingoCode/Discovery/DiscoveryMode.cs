@@ -246,19 +246,9 @@ public partial class DiscoveryMode : CanvasLayer
     }
 
     /// <summary>
-    /// The discovery button's tooltip, naming the key; empty until the game's text is loaded.
+    /// The key that turns discovery mode on and off, as the tooltips name it.
     /// </summary>
-    internal static string ButtonTip()
-    {
-        try
-        {
-            return Text("SPIRELINGO-DISCOVERY.button_tip").Replace("{Key}", ToggleKey.ToString());
-        }
-        catch
-        {
-            return "";
-        }
-    }
+    internal static string KeyName() => ToggleKey.ToString();
 
     private const float CornerSize = 56;
 
@@ -278,6 +268,7 @@ public partial class DiscoveryMode : CanvasLayer
         _cornerButton.CustomMinimumSize = new Vector2(CornerSize, CornerSize);
         _cornerButton.PivotOffset = new Vector2(CornerSize, CornerSize) / 2;
         GrowOnHover(_cornerButton);
+        AttachDiscoveryTip(_cornerButton, KeyName);
         _cornerButton.Pressed += Toggle;
         AddChild(_cornerButton);
     }
@@ -289,10 +280,8 @@ public partial class DiscoveryMode : CanvasLayer
         if (_cornerButton.Visible != show) _cornerButton.Visible = show;
         if (!show) return;
         _cornerButton.Position = new Vector2(GetViewport().GetVisibleRect().Size.X - CornerSize - 16, 16);
-        // The game's text isn't loaded when the layer is built, so the tooltip is filled in once it is.
-        if (_cornerButton.TooltipText.Length > 0) return;
-        _cornerButton.TooltipText = ButtonTip();
-        if (_cornerButton.Icon == null && _cornerButton.TooltipText.Length > 0) _cornerButton.Text = Text("SPIRELINGO-DISCOVERY.button");
+        // Without the icon the button needs a label, which can only be read once the game's text is loaded.
+        if (_cornerButton.Icon == null && _cornerButton.Text.Length == 0) _cornerButton.Text = Text("SPIRELINGO-DISCOVERY.button", "");
     }
 
     private void Select(FoundWord? word)
