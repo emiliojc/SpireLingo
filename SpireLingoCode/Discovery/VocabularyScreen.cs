@@ -5,7 +5,7 @@ using static SpireLingo.SpireLingoCode.Discovery.Ui;
 namespace SpireLingo.SpireLingoCode.Discovery;
 
 /// <summary>
-/// The saved words: a list with a tab per state, search and sorting, and a page for the chosen word with all
+/// The player's words: a list with a tab per state (and one with every glossary word), search and sorting, and a page for the chosen word with all
 /// its meanings, the game sentences it appears in, and its history. Built from plain Godot controls on the
 /// discovery layer; while it is open it takes every key (typing goes to the search) and covers the game.
 /// </summary>
@@ -18,8 +18,9 @@ internal sealed class VocabularyScreen
         Frequency
     }
 
-    private static readonly WordState[] Tabs =
-        [WordState.Learning, WordState.Recognised, WordState.Known, WordState.LookedUp, WordState.Seen, WordState.Ignored];
+    // Null is the "All" tab: every word in the glossary, saved or not.
+    private static readonly WordState?[] Tabs =
+        [null, WordState.Learning, WordState.Recognised, WordState.Known, WordState.LookedUp, WordState.Seen, WordState.Ignored];
 
     private const int MaxRows = 200;
     private const int MaxSentences = 5;
@@ -28,7 +29,7 @@ internal sealed class VocabularyScreen
     private readonly Control _root;
     private readonly Label _title;
     private readonly Button _close;
-    private readonly Dictionary<WordState, Button> _tabs = [];
+    private readonly List<Button> _tabs = [];
     private readonly Label _search;
     private readonly Dictionary<Sort, Button> _sorts = [];
     private readonly VBoxContainer _rows;
@@ -39,11 +40,11 @@ internal sealed class VocabularyScreen
     private readonly Dictionary<WordState, Button> _chipButtons = [];
     private readonly RichTextLabel _pageBody;
 
-    private WordState _tab = WordState.Learning;
+    private WordState? _tab;
     private Sort _sort = Sort.LastMet;
     private string _query = "";
     private ulong? _searchChangedAt;
-    private WordRecord? _shown;
+    private string? _shown;
 
     public bool IsOpen => _root.Visible;
 
@@ -93,7 +94,7 @@ internal sealed class VocabularyScreen
         {
             var tab = MakeButton(fontSize: 17, toggle: true);
             tab.Pressed += () => ShowTab(state);
-            _tabs[state] = tab;
+            _tabs.Add(tab);
             tabs.AddChild(tab);
         }
         list.AddChild(tabs);
@@ -165,9 +166,9 @@ internal sealed class VocabularyScreen
         _chipButtons[WordState.Ignored].Text = Text("SPIRELINGO-DISCOVERY.state.ignore");
         _query = "";
         _root.Visible = true;
-        // Open on the first tab that has words, so a new list doesn't look empty.
+        // Open on the first state that has words, or on All for a new list.
         var counts = WordStore.All.GroupBy(r => r.State).ToDictionary(g => g.Key, g => g.Count());
-        ShowTab(Tabs.FirstOrDefault(t => counts.GetValueOrDefault(t) > 0, WordState.Learning));
+        ShowTab(Tabs.FirstOrDefault(t => t != null && counts.GetValueOrDefault(t.Value) > 0));
     }
 
     public void Close()
@@ -223,7 +224,7 @@ internal sealed class VocabularyScreen
     private void ShowQuery() =>
         _search.Text = _query.Length == 0 ? Text("SPIRELINGO-VOCAB.search_hint") : $"{Text("SPIRELINGO-VOCAB.search")} {_query}▏";
 
-    private void ShowTab(WordState state)
+    private void ShowTab(WordState? state)
     {
         _tab = state;
         ShowQuery();
@@ -232,60 +233,72 @@ internal sealed class VocabularyScreen
 
     private void Refresh()
     {
-        var all = WordStore.All;
-        var counts = all.GroupBy(r => r.State).ToDictionary(g => g.Key, g => g.Count());
-        foreach (var (state, tab) in _tabs)
+        var saved = WordStore.All;
+        var counts = saved.GroupBy(r => r.State).ToDictionary(g => g.Key, g => g.Count());
+        for (var i = 0; i < Tabs.Length; i++)
         {
-            tab.Text = $"{StateName(state)} ({counts.GetValueOrDefault(state)})";
-            tab.SetPressedNoSignal(state == _tab);
+            var count = Tabs[i] is { } state ? counts.GetValueOrDefault(state) : Glossary.AllLemmas.Count;
+            _tabs[i].Text = $"{(Tabs[i] is { } s ? StateName(s) : Text("SPIRELINGO-VOCAB.all"))} ({count})";
+            _tabs[i].SetPressedNoSignal(Tabs[i] == _tab);
         }
         foreach (var (sort, button) in _sorts) button.SetPressedNoSignal(sort == _sort);
 
-        var words = all.Where(r => r.State == _tab && Matches(r));
+        // Each word with its record, if it has one; the All tab adds every glossary word not saved yet.
+        var words = _tab is { } tab
+            ? saved.Where(r => r.State == tab).Select(r => (lemma: r.Lemma, record: (WordRecord?)r))
+            : Glossary.AllLemmas.Select(l => (lemma: l, record: WordStore.Get(l)))
+                .Concat(saved.Where(r => !Glossary.AllLemmas.Contains(r.Lemma)).Select(r => (lemma: r.Lemma, record: (WordRecord?)r)));
+        words = words.Where(w => Matches(w.lemma));
         words = _sort switch
         {
-            Sort.Lookups => words.OrderByDescending(r => r.Lookups).ThenByDescending(r => r.LastSeen),
-            Sort.Frequency => words.OrderByDescending(r => Glossary.Frequency(r.Lemma)).ThenBy(r => r.Lemma),
-            _ => words.OrderByDescending(r => r.LastSeen)
+            Sort.Lookups => words.OrderByDescending(w => w.record?.Lookups ?? -1).ThenBy(w => w.lemma),
+            Sort.Frequency => words.OrderByDescending(w => Glossary.Frequency(w.lemma)).ThenBy(w => w.lemma),
+            _ => words.OrderByDescending(w => w.record?.LastSeen ?? DateTime.MinValue).ThenBy(w => w.lemma)
         };
         var list = words.ToList();
 
         foreach (var child in _rows.GetChildren()) child.QueueFree();
-        foreach (var record in list.Take(MaxRows)) _rows.AddChild(Row(record));
+        foreach (var (lemma, record) in list.Take(MaxRows)) _rows.AddChild(Row(lemma, record));
         _empty.Visible = list.Count == 0 || list.Count > MaxRows;
         _empty.Text = list.Count == 0
             ? Text("SPIRELINGO-VOCAB.empty")
             : Text("SPIRELINGO-VOCAB.more").Replace("{Count}", (list.Count - MaxRows).ToString());
 
-        if (_shown == null || !list.Contains(_shown)) ShowWord(list.FirstOrDefault());
+        if (_shown == null || list.All(w => w.lemma != _shown)) ShowWord(list.FirstOrDefault().lemma);
     }
 
-    private bool Matches(WordRecord record)
+    private bool Matches(string lemma)
     {
         if (_query.Length == 0) return true;
-        if (record.Lemma.Contains(_query, StringComparison.OrdinalIgnoreCase)) return true;
-        return Glossary.EntriesFor(record.Lemma).Any(e => e.Senses.Any(s => s.Contains(_query, StringComparison.OrdinalIgnoreCase)));
+        if (lemma.Contains(_query, StringComparison.OrdinalIgnoreCase)) return true;
+        return Glossary.EntriesFor(lemma).Any(e => e.Senses.Any(s => s.Contains(_query, StringComparison.OrdinalIgnoreCase)));
     }
 
-    private Button Row(WordRecord record)
+    private Button Row(string lemma, WordRecord? record)
     {
-        var entry = Glossary.EntriesFor(record.Lemma).FirstOrDefault();
+        var entry = Glossary.EntriesFor(lemma).FirstOrDefault();
         var meaning = entry?.Senses.FirstOrDefault() ?? "";
         if (meaning.Length > 48) meaning = meaning[..47] + "…";
-        var lookups = record.Lookups > 0 ? $" · {record.Lookups}×" : "";
-        var row = MakeButton($"{Article(entry?.Gender)}{record.Lemma}   {meaning}   ({StateName(record.State)}{lookups})", 17);
+        // Words that aren't saved show no state.
+        var state = record == null ? "" : $"   ({StateName(record.State)}{(record.Lookups > 0 ? $" · {record.Lookups}×" : "")})";
+        var row = MakeButton($"{Article(entry?.Gender)}{lemma}   {meaning}{state}", 17);
         row.Alignment = HorizontalAlignment.Left;
         row.Flat = true;
         row.ClipText = true;
         row.SizeFlagsHorizontal = Control.SizeFlags.ExpandFill;
-        row.Pressed += () => ShowWord(record);
+        row.Pressed += () => ShowWord(lemma);
         return row;
     }
 
+    /// <summary>
+    /// A chip on the word page. This is the only thing on the screen that saves a word.
+    /// </summary>
     private void Choose(WordState state)
     {
         if (_shown == null) return;
-        WordStore.Choose(_shown, _shown.State == state ? WordState.LookedUp : state);
+        var record = WordStore.Get(_shown);
+        if (record == null) WordStore.Save(_shown, state);
+        else WordStore.Choose(record, record.State == state ? WordState.LookedUp : state);
         ShowWord(_shown);
         Refresh();
     }
@@ -293,35 +306,37 @@ internal sealed class VocabularyScreen
     /// <summary>
     /// The word page: base form, grammar, all meanings, example, the game sentences using it, and history.
     /// </summary>
-    private void ShowWord(WordRecord? record)
+    private void ShowWord(string? lemma)
     {
-        _shown = record;
-        _chips.Visible = record != null;
-        if (record == null)
+        _shown = lemma;
+        _chips.Visible = lemma != null;
+        if (lemma == null)
         {
             _pageHeader.Text = "";
             _pageBody.Text = "";
             return;
         }
-        foreach (var (state, chip) in _chipButtons) chip.SetPressedNoSignal(record.State == state);
+        // Opening a page only reads the word; it is saved when a chip is clicked.
+        var record = WordStore.Get(lemma);
+        foreach (var (state, chip) in _chipButtons) chip.SetPressedNoSignal(record?.State == state);
 
-        var entries = Glossary.EntriesFor(record.Lemma);
+        var entries = Glossary.EntriesFor(lemma);
         var first = entries.FirstOrDefault();
         var grammar = new List<string>();
         if (first != null) grammar.Add(Text($"SPIRELINGO-DISCOVERY.pos.{first.Pos}", first.Pos));
         if (first?.Plural is { } plural) grammar.Add($"{Text("SPIRELINGO-DISCOVERY.plural")} {Escape(plural)}");
-        _pageHeader.Text = $"[color=#{HighlightColor.ToHtml(false)}]{Escape(Article(first?.Gender) + record.Lemma)}[/color]" +
+        _pageHeader.Text = $"[color=#{HighlightColor.ToHtml(false)}]{Escape(Article(first?.Gender) + lemma)}[/color]" +
                            (grammar.Count > 0 ? $"  [font_size=18][color=#{MutedColor.ToHtml(false)}]{string.Join(" · ", grammar)}[/color][/font_size]" : "");
 
         var body = new List<string>();
         var senses = entries.SelectMany(e => e.Senses).Distinct().ToList();
         for (var n = 0; n < senses.Count; n++) body.Add($"{n + 1}. {Escape(senses[n])}");
-        if (senses.Count == 0 && Glossary.CompoundParts(record.Lemma) is { } parts)
+        if (senses.Count == 0 && Glossary.CompoundParts(lemma) is { } parts)
         {
             body.Add($"{Text("SPIRELINGO-DISCOVERY.compound")} " + string.Join(" + ", parts.Select(p =>
                 Glossary.Lookup(p).FirstOrDefault() is { Senses.Length: > 0 } e ? $"{Escape(p)} ({Escape(e.Senses[0])})" : Escape(p))));
         }
-        if (Glossary.SeparablePrefix(record.Lemma) is { } prefix)
+        if (Glossary.SeparablePrefix(lemma) is { } prefix)
             body.Add($"[color=#{MutedColor.ToHtml(false)}]{Escape(Text("SPIRELINGO-DISCOVERY.separable").Replace("{Particle}", prefix))}[/color]");
 
         if (entries.FirstOrDefault(e => e.ExampleDe != null) is { } example)
@@ -332,7 +347,7 @@ internal sealed class VocabularyScreen
             body.Add($"[color=#{MutedColor.ToHtml(false)}]{Escape(example.ExampleEn ?? "")}[/color]");
         }
 
-        var sentences = SeenIn(record).ToList();
+        var sentences = SeenIn(lemma, record).ToList();
         if (sentences.Count > 0)
         {
             body.Add("");
@@ -342,11 +357,18 @@ internal sealed class VocabularyScreen
 
         body.Add("");
         body.Add(Heading("SPIRELINGO-VOCAB.history"));
-        body.Add($"{Text("SPIRELINGO-VOCAB.first_met")} {record.FirstSeen.ToLocalTime():d} · " +
-                 $"{Text("SPIRELINGO-DISCOVERY.looked_up").Replace("{Count}", record.Lookups.ToString())} · " +
-                 $"{Text("SPIRELINGO-VOCAB.seen_count").Replace("{Count}", record.Seen.ToString())}");
-        foreach (var (date, state) in record.History.AsEnumerable().Reverse().Take(8))
-            body.Add($"[color=#{MutedColor.ToHtml(false)}]{date.ToLocalTime():g}[/color]  {StateName(state)}");
+        if (record == null)
+        {
+            body.Add($"[color=#{MutedColor.ToHtml(false)}]{Escape(Text("SPIRELINGO-VOCAB.not_saved"))}[/color]");
+        }
+        else
+        {
+            body.Add($"{Text("SPIRELINGO-VOCAB.first_met")} {record.FirstSeen.ToLocalTime():d} · " +
+                     $"{Text("SPIRELINGO-DISCOVERY.looked_up").Replace("{Count}", record.Lookups.ToString())} · " +
+                     $"{Text("SPIRELINGO-VOCAB.seen_count").Replace("{Count}", record.Seen.ToString())}");
+            foreach (var (date, state) in record.History.AsEnumerable().Reverse().Take(8))
+                body.Add($"[color=#{MutedColor.ToHtml(false)}]{date.ToLocalTime():g}[/color]  {StateName(state)}");
+        }
 
         body.Add("");
         body.Add($"[color=#{MutedColor.ToHtml(false)}][i]{Escape(Text("SPIRELINGO-VOCAB.tips_later"))}[/i][/color]");
@@ -358,24 +380,23 @@ internal sealed class VocabularyScreen
     private static string Heading(string key) => $"[b][color=#{HighlightColor.ToHtml(false)}]{Escape(Text(key))}[/color][/b]";
 
     /// <summary>
-    /// Up to five game lines using the word, the player's own first, each with the target-language line.
+    /// Up to five different game lines using the word, the player's own first, each with the target-language
+    /// line. Lines that read the same once values are X ("Füge X Schaden zu." on many cards) appear once.
     /// </summary>
-    private static IEnumerable<string> SeenIn(WordRecord record)
+    private static IEnumerable<string> SeenIn(string lemma, WordRecord? record)
     {
-        var refs = record.Contexts.AsEnumerable().Reverse()
-            .Concat(Glossary.LinesWith(record.Lemma).OrderBy(TableRank))
-            .Distinct()
-            .Take(MaxSentences * 3);
-        var shown = 0;
+        var refs = (record?.Contexts.AsEnumerable().Reverse() ?? [])
+            .Concat(Glossary.LinesWith(lemma).OrderBy(TableRank))
+            .Distinct();
+        var seen = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
         foreach (var lineRef in refs)
         {
-            if (shown == MaxSentences) yield break;
+            if (seen.Count == MaxSentences) yield break;
             var german = SentenceMatcher.SampleLine(lineRef, target: false);
-            if (string.IsNullOrWhiteSpace(german)) continue;
+            if (string.IsNullOrWhiteSpace(german) || !seen.Add(german)) continue;
             var english = SentenceMatcher.SampleLine(lineRef, target: true);
-            yield return $"• {Bold(german, Glossary.SurfacesOf(lineRef, record.Lemma).Append(record.Lemma))}" +
+            yield return $"• {Bold(german, Glossary.SurfacesOf(lineRef, lemma).Append(lemma))}" +
                          (string.IsNullOrWhiteSpace(english) ? "" : $"\n   [color=#{MutedColor.ToHtml(false)}]{Escape(english)}[/color]");
-            shown++;
         }
     }
 

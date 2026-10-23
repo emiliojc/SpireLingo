@@ -236,6 +236,27 @@ public partial class DiscoveryMode : CanvasLayer
     private void BuildCornerButton()
     {
         _cornerButton = MakeButton(fontSize: 16);
+        // The game's own magnifying-glass cursor (an Image resource, so it is turned into a texture here).
+        try
+        {
+            var icon = ResourceLoader.Load("res://images/packed/common_ui/cursor_inspect.png") switch
+            {
+                Image image => ImageTexture.CreateFromImage(image),
+                Texture2D texture => texture,
+                _ => null
+            };
+            if (icon != null)
+            {
+                _cornerButton.Icon = icon;
+                _cornerButton.ExpandIcon = true;
+                _cornerButton.Flat = true;
+                _cornerButton.CustomMinimumSize = new Vector2(44, 44);
+            }
+        }
+        catch (Exception e)
+        {
+            MainFile.Logger.Warn($"Discovery: could not load the magnifier icon, using text: {e.Message}");
+        }
         _cornerButton.Modulate = new Color(1, 1, 1, 0.45f);
         _cornerButton.MouseEntered += () => _cornerButton.Modulate = Colors.White;
         _cornerButton.MouseExited += () => _cornerButton.Modulate = new Color(1, 1, 1, 0.45f);
@@ -248,11 +269,11 @@ public partial class DiscoveryMode : CanvasLayer
     {
         var show = SpireLingoConfig.ShowDiscoveryButton && !_vocabulary.IsOpen;
         if (_cornerButton.Visible != show) _cornerButton.Visible = show;
-        // The game's text isn't loaded when the layer is built, so the label is filled in once it is.
-        if (!show || _cornerButton.Text.Length > 0) return;
+        // The game's text isn't loaded when the layer is built, so the tooltip is filled in once it is.
+        if (!show || _cornerButton.TooltipText.Length > 0) return;
         try
         {
-            _cornerButton.Text = Text("SPIRELINGO-DISCOVERY.button");
+            if (_cornerButton.Icon == null) _cornerButton.Text = Text("SPIRELINGO-DISCOVERY.button");
             _cornerButton.TooltipText = Text("SPIRELINGO-DISCOVERY.button_tip").Replace("{Key}", ToggleKey.ToString());
         }
         catch

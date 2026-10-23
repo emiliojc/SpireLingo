@@ -114,6 +114,25 @@ internal static class WordStore
     }
 
     /// <summary>
+    /// Saves a word that has no record yet with the state the player chose for it (from the vocabulary's All tab).
+    /// </summary>
+    public static WordRecord Save(string lemma, WordState state)
+    {
+        EnsureLoaded();
+        if (Words.TryGetValue(lemma, out var existing))
+        {
+            Choose(existing, state);
+            return existing;
+        }
+        var now = DateTime.UtcNow;
+        var record = new WordRecord { Lemma = lemma, State = state, FirstSeen = now, LastSeen = now };
+        record.History.Add((now, state));
+        Words[lemma] = record;
+        MarkDirty();
+        return record;
+    }
+
+    /// <summary>
     /// Writes pending changes once they are a second old. Called every frame.
     /// </summary>
     public static void Tick()

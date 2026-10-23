@@ -49,5 +49,7 @@
   "SPIRELINGO-VOCAB.state.learning": "Learning",
   "SPIRELINGO-VOCAB.state.recognised": "Recognised",
   "SPIRELINGO-VOCAB.state.known": "Known",
-  "SPIRELINGO-VOCAB.state.ignored": "Ignored"
+  "SPIRELINGO-VOCAB.state.ignored": "Ignored",
+  "SPIRELINGO-VOCAB.all": "All",
+  "SPIRELINGO-VOCAB.not_saved": "Not saved yet. Choose Learning, Known or Ignore to save it."
 }
