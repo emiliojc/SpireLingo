@@ -1,0 +1,14 @@
+SpireLingo includes data derived from third-party sources:
+
+SpireLingo/data/glossary_deu_eng.json
+  Word meanings, parts of speech, genders, plurals, inflected forms and examples are taken from
+  English Wiktionary (https://en.wiktionary.org/), contributors listed in each entry's page history,
+  as extracted by kaikki.org / Wiktextract (https://kaikki.org/, https://github.com/tatuylonen/wiktextract).
+  Licensed under the Creative Commons Attribution-ShareAlike 4.0 International License
+  (https://creativecommons.org/licenses/by-sa/4.0/). The file was shortened to the words
+  Slay the Spire 2 uses; that adapted file is shared under the same license.
+
+SpireLingo/data/sentences_deu.json
+  Word analysis (base forms, parts of speech, separable verb links) of the game's German text,
+  produced with spaCy's de_core_news_md model (MIT License, https://spacy.io/). It holds only
+  lowercase words and their base forms, not the game's sentences.
