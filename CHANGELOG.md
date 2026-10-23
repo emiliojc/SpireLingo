@@ -3,6 +3,18 @@
 All notable changes to SpireLingo. Versions follow [Semantic Versioning](https://semver.org/); the version
 lives in `SpireLingo.json` and is copied into the DLL at build time.
 
+## 0.6.1 - 2026-10-23
+
+### Fixed
+- The glossary no longer turns short words and abbreviations into place or person names: "kl." is klein,
+  "mi." mittel, "max." maximal, and die, so, alle, groß and aus are the ordinary words again (not the Algarve,
+  a Swiss canton, a river, a surname or an Austrian town). (#8)
+- The discovery popup moves up instead of running off the bottom of the screen when "Show sentence" makes it
+  taller, and energy icons show as icons in it instead of "( )". (#9)
+- On the main menu the magnifier sits beside the patch notes button instead of on top of it. (#10)
+- The top-bar magnifier is a little smaller, like its neighbours, and shows the game's own tooltip with its
+  key. (#12)
+
 ## 0.6.0 - 2026-10-23
 
 ### Added
