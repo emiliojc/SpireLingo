@@ -17,7 +17,7 @@ internal static class SentenceMatcher
 
     private sealed record Placeholder(string Name, string[] Options);
 
-    public sealed record Match(string Table, string Key, string Translation);
+    public sealed record Match(string Table, string Key, int Line, string Translation);
 
     private static readonly AccessTools.FieldRef<LocManager, Dictionary<string, LocTable>> TablesField =
         AccessTools.FieldRefAccess<LocManager, Dictionary<string, LocTable>>("_tables");
@@ -85,12 +85,12 @@ internal static class SentenceMatcher
 
     private static Match Translate(Template template, Dictionary<string, (string text, int optionIndex)> captured)
     {
-        if (!TargetText.TryGetRaw(template.Table, template.Key, out var raw)) return new(template.Table, template.Key, "");
+        if (!TargetText.TryGetRaw(template.Table, template.Key, out var raw)) return new(template.Table, template.Key, template.Line, "");
 
         // Show the matching line of a multi-line entry when both languages split it the same way.
         var lines = Lines(raw);
         var text = lines.Count == template.LineCount ? lines[template.Line] : raw;
-        return new(template.Table, template.Key, Normalize(Render(text, captured)));
+        return new(template.Table, template.Key, template.Line, Normalize(Render(text, captured)));
     }
 
     /// <summary>

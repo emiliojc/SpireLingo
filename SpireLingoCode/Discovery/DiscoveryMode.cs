@@ -18,16 +18,20 @@ public partial class DiscoveryMode : CanvasLayer
     private ColorRect _dim = null!;
     private Node2D _hoverMark = null!;
     private Node2D _selectedMark = null!;
+    private Node2D _partnerMark = null!;
     private PanelContainer _badge = null!;
     private Label _badgeLabel = null!;
     private PanelContainer _popup = null!;
     private Label _popupWord = null!;
+    private RichTextLabel _popupInfo = null!;
     private RichTextLabel _popupContext = null!;
     private Button _sentenceButton = null!;
     private RichTextLabel _popupSentence = null!;
 
     private FoundWord? _hovered;
     private FoundWord? _selected;
+    private FoundWord? _partner;
+    private SentenceMatcher.Match? _match;
     private ulong _lastHoverMs;
 
     /// <summary>
@@ -50,6 +54,7 @@ public partial class DiscoveryMode : CanvasLayer
 
         _hoverMark = MakeMark(0.18f);
         _selectedMark = MakeMark(0.3f);
+        _partnerMark = MakeMark(0.3f);
 
         _badgeLabel = new Label { HorizontalAlignment = HorizontalAlignment.Center };
         _badgeLabel.AddThemeFontSizeOverride("font_size", 22);
@@ -73,6 +78,7 @@ public partial class DiscoveryMode : CanvasLayer
         if (_hovered != null && !GodotObject.IsInstanceValid(_hovered.Label)) _hovered = null;
         Place(_hoverMark, _hovered);
         Place(_selectedMark, _selected);
+        Place(_partnerMark, _selected == null ? null : _partner);
     }
 
     public override void _Input(InputEvent @event)
@@ -166,14 +172,15 @@ public partial class DiscoveryMode : CanvasLayer
         HoverHold.Release(GetViewport().GetMousePosition());
         HoverHold.SelectedLabel = word?.Label;
         _selected = word;
+        _partner = null;
+        _match = null;
         if (word == null)
         {
             _popup.Visible = false;
             return;
         }
 
-        _popupWord.Text = word.Word;
-        _popupContext.Text = $"{Escape(word.Line[..word.IndexInLine])}[b]{Escape(word.Word)}[/b]{Escape(word.Line[(word.IndexInLine + word.Word.Length)..])}";
+        Describe(word);
         _popupSentence.Visible = false;
         _sentenceButton.Text = Text("SPIRELINGO-DISCOVERY.show_sentence");
         CopyFont(word.Label);
@@ -188,6 +195,102 @@ public partial class DiscoveryMode : CanvasLayer
             Math.Clamp(position.Y, 8, Math.Max(8, screen.Y - _popup.Size.Y - 8)));
     }
 
+    /// <summary>
+    /// Fills the popup for a word: its base form and meanings from the glossary, compound parts, and for a
+    /// separable verb the other half of the verb, which is also marked on screen.
+    /// </summary>
+    private void Describe(FoundWord word)
+    {
+        Glossary.EnsureLoaded();
+        try
+        {
+            _match = SentenceMatcher.Find(word.Line, word.IndexInLine);
+        }
+        catch (Exception e)
+        {
+            MainFile.Logger.Warn($"Discovery: sentence lookup failed: {e.Message}");
+        }
+
+        string? lemma = null, pos = null;
+        (int index, int length)? partner = null;
+        if (_match != null && Glossary.LineTokens(_match.Table, _match.Key, _match.Line) is { } tokens)
+        {
+            var i = Glossary.TokenIndex(tokens, word.Line, word.IndexInLine);
+            if (i >= 0)
+            {
+                lemma = tokens[i].Lemma;
+                pos = tokens[i].Pos;
+                if (tokens[i].Partner >= 0) partner = Glossary.FindInLine(tokens, tokens[i].Partner, word.Line);
+            }
+        }
+        if (partner == null && Glossary.SeparableHeuristic(word.Line, word.IndexInLine) is { } guess)
+        {
+            lemma = guess.verb;
+            pos = "verb";
+            partner = (guess.partnerIndex, guess.partnerLength);
+        }
+
+        var entries = Glossary.Lookup(word.Word, lemma);
+        var chosen = entries.Where(e => e.Pos == pos).ToList() is { Count: > 0 } samePos ? samePos : entries;
+        var info = new List<string>();
+
+        var first = chosen.FirstOrDefault();
+        _popupWord.Text = first == null ? word.Word : Article(first.Gender) + first.Lemma;
+        var grammar = new List<string>();
+        if (first != null && !first.Lemma.Equals(word.Word, StringComparison.OrdinalIgnoreCase)) grammar.Add($"{Escape(word.Word)} → {Escape(first.Lemma)}");
+        if ((first?.Pos ?? pos) is { Length: > 0 } partOfSpeech) grammar.Add(Text($"SPIRELINGO-DISCOVERY.pos.{partOfSpeech}", partOfSpeech));
+        if (first?.Plural is { } plural) grammar.Add($"{Text("SPIRELINGO-DISCOVERY.plural")} {Escape(plural)}");
+        if (grammar.Count > 0) info.Add($"[color=#b0b0b0]{string.Join(" · ", grammar)}[/color]");
+
+        var senses = chosen.SelectMany(e => e.Senses).Distinct().Take(5).ToList();
+        for (var n = 0; n < senses.Count; n++) info.Add($"{n + 1}. {Escape(senses[n])}");
+
+        if (senses.Count == 0 && Glossary.CompoundParts(word.Word) is { } parts)
+        {
+            var explained = parts.Select(part => Glossary.Lookup(part).FirstOrDefault() is { Senses.Length: > 0 } e
+                ? $"{Escape(part)} ({Escape(e.Senses[0])})" : Escape(part));
+            info.Add($"{Text("SPIRELINGO-DISCOVERY.compound")} {string.Join(" + ", explained)}");
+        }
+        else if (senses.Count == 0 && Glossary.IsLoaded)
+        {
+            info.Add($"[i]{Text("SPIRELINGO-DISCOVERY.not_in_glossary")}[/i]");
+        }
+
+        var context = $"{Escape(word.Line[..word.IndexInLine])}[b]{Escape(word.Word)}[/b]{Escape(word.Line[(word.IndexInLine + word.Word.Length)..])}";
+        if (partner is var (index, length) && index + length <= word.Line.Length)
+        {
+            var particle = index > word.IndexInLine ? word.Line.Substring(index, length) : word.Word;
+            info.Add($"[color=#b0b0b0]{Escape(Text("SPIRELINGO-DISCOVERY.separable").Replace("{Particle}", particle))}[/color]");
+            context = Mark(word.Line, (word.IndexInLine, word.Word.Length), (index, length));
+            if (WordFinder.RectOf(word.Label, word.LineStart + index, length) is { } rect)
+                _partner = word with { Word = word.Line.Substring(index, length), LocalRect = rect, IndexInLine = index };
+        }
+
+        _popupInfo.Text = string.Join("\n", info);
+        _popupInfo.Visible = info.Count > 0;
+        _popupContext.Text = context;
+    }
+
+    /// <summary>
+    /// The line with two spans in bold, for a verb and its separated particle.
+    /// </summary>
+    private static string Mark(string line, (int index, int length) a, (int index, int length) b)
+    {
+        var (first, second) = a.index < b.index ? (a, b) : (b, a);
+        return Escape(line[..first.index]) + $"[b]{Escape(line.Substring(first.index, first.length))}[/b]" +
+               Escape(line[(first.index + first.length)..second.index]) + $"[b]{Escape(line.Substring(second.index, second.length))}[/b]" +
+               Escape(line[(second.index + second.length)..]);
+    }
+
+    private static string Article(string? gender) => gender switch
+    {
+        "m" => "der ",
+        "f" => "die ",
+        "n" => "das ",
+        { Length: > 1 } => string.Join("/", gender.Select(g => g switch { 'm' => "der", 'f' => "die", _ => "das" })) + " ",
+        _ => ""
+    };
+
     private void ToggleSentence()
     {
         if (_selected == null) return;
@@ -198,15 +301,7 @@ public partial class DiscoveryMode : CanvasLayer
         }
         else
         {
-            SentenceMatcher.Match? match = null;
-            try
-            {
-                match = SentenceMatcher.Find(_selected.Line, _selected.IndexInLine);
-            }
-            catch (Exception e)
-            {
-                MainFile.Logger.Warn($"Discovery: sentence lookup failed: {e.Message}");
-            }
+            var match = _match;
             _popupSentence.Text = match is { Translation.Length: > 0 }
                 ? Escape(match.Translation)
                 : $"[i]{Escape(Text("SPIRELINGO-DISCOVERY.no_translation"))}[/i]";
@@ -226,6 +321,9 @@ public partial class DiscoveryMode : CanvasLayer
         _popupWord.AddThemeFontSizeOverride("font_size", 28);
         _popupWord.AddThemeColorOverride("font_color", HighlightColor);
         box.AddChild(_popupWord);
+
+        _popupInfo = MakeText(Colors.White);
+        box.AddChild(_popupInfo);
 
         _popupContext = MakeText(new Color(0.85f, 0.85f, 0.85f));
         box.AddChild(_popupContext);
@@ -316,7 +414,7 @@ public partial class DiscoveryMode : CanvasLayer
         if (font == null) return;
         _popupWord.AddThemeFontOverride("font", font);
         _sentenceButton.AddThemeFontOverride("font", font);
-        foreach (var text in new[] { _popupContext, _popupSentence })
+        foreach (var text in new[] { _popupInfo, _popupContext, _popupSentence })
         {
             text.AddThemeFontOverride("normal_font", font);
             text.AddThemeFontOverride("italics_font", font);
@@ -326,6 +424,18 @@ public partial class DiscoveryMode : CanvasLayer
     }
 
     private static string Text(string key) => new LocString("gameplay_ui", key).GetRawText();
+
+    private static string Text(string key, string fallback)
+    {
+        try
+        {
+            return Text(key);
+        }
+        catch
+        {
+            return fallback;
+        }
+    }
 
     private static string Escape(string text) => text.Replace("[", "[lb]");
 }
