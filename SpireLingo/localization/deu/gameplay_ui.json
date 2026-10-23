@@ -28,7 +28,6 @@
   "SPIRELINGO-DISCOVERY.looked_up": "{Count}× nachgeschlagen",
   "SPIRELINGO-DISCOVERY.vocabulary": "Wortschatz",
   "SPIRELINGO-DISCOVERY.button": "Entdecken",
-  "SPIRELINGO-DISCOVERY.button_tip": "Entdeckungsmodus ({Key}): klicke auf ein beliebiges Wort, um es nachzuschlagen",
   "SPIRELINGO-VOCAB.title": "Wortschatz",
   "SPIRELINGO-VOCAB.close": "Schließen (Esc)",
   "SPIRELINGO-VOCAB.sort.last_met": "Zuletzt gesehen",
@@ -50,5 +49,7 @@
   "SPIRELINGO-VOCAB.state.recognised": "Wiedererkannt",
   "SPIRELINGO-VOCAB.state.known": "Kenne ich",
   "SPIRELINGO-VOCAB.state.ignored": "Ignoriert",
-  "SPIRELINGO-VOCAB.all": "Alle"
+  "SPIRELINGO-VOCAB.all": "Alle",
+  "SPIRELINGO-DISCOVERY.button_title": "Entdecken ({Hotkey})",
+  "SPIRELINGO-DISCOVERY.button_desc": "Klicke auf ein beliebiges Wort, um es nachzuschlagen."
 }

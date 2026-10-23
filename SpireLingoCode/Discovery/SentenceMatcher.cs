@@ -15,7 +15,13 @@ internal static class SentenceMatcher
     private sealed record Template(string Table, string Key, int Line, int LineCount, Regex? Pattern,
         List<Placeholder> Placeholders, int LiteralLength);
 
-    private sealed record Placeholder(string Name, string[] Options);
+    private sealed record Placeholder(string Name, string Format, string[] Options);
+
+    /// <summary>
+    /// The object character Godot puts in a label's text for an inline image (the game's energy and star icons).
+    /// It is kept through matching so the popup can show the icon again.
+    /// </summary>
+    public const char Icon = '\ufffc';
 
     public sealed record Match(string Table, string Key, int Line, string Translation);
 
@@ -114,7 +120,7 @@ internal static class SentenceMatcher
         var normalized = Normalize(text);
         if (normalized.Length == 0) return null;
 
-        if (Exact.TryGetValue(normalized, out var exact)) return Translate(exact, []);
+        if (Exact.TryGetValue(normalized.Replace(Icon.ToString(), ""), out var exact)) return Translate(exact, []);
 
         Template? best = null;
         System.Text.RegularExpressions.Match? bestMatch = null;
@@ -174,6 +180,13 @@ internal static class SentenceMatcher
                 var index = value.optionIndex >= 0 ? value.optionIndex : PluralIndex(value.text, placeholder.Options.Length);
                 var option = placeholder.Options[Math.Min(index, placeholder.Options.Length - 1)];
                 result.Append(Render(option.Replace("{}", NumberIn(value.text) ?? ""), captured));
+            }
+            else if (placeholder.Format.Contains("Icons", StringComparison.Ordinal))
+            {
+                // Energy or star icons: as many as the game showed, or as the format asks for.
+                var count = value.text?.Count(c => c == Icon) ?? 0;
+                if (count == 0) count = int.TryParse(NumberIn(placeholder.Format), out var n) ? n : 1;
+                result.Append(Icon, Math.Max(1, count));
             }
             else
             {
@@ -241,7 +254,7 @@ internal static class SentenceMatcher
             literal.Append(text);
             foreach (var piece in Spaces.Split(text))
             {
-                if (pattern.Length > 1) pattern.Append(@"\s*");
+                if (pattern.Length > 1) pattern.Append(@"[\s\ufffc]*");
                 pattern.Append(Regex.Escape(piece));
             }
         }
@@ -250,7 +263,7 @@ internal static class SentenceMatcher
         var literalLength = Spaces.Replace(literal.ToString(), "").Length;
         if (placeholders.Count == 0)
         {
-            var normalized = Normalize(literal.ToString());
+            var normalized = Normalize(literal.ToString()).Replace(Icon.ToString(), "");
             if (normalized.Length > 0) Exact.TryAdd(normalized, new(table, key, line, lineCount, null, placeholders, literalLength));
             return;
         }
@@ -316,8 +329,9 @@ internal static class SentenceMatcher
     {
         var parts = SplitTopLevel(inner, ':');
         var name = parts[0].Trim();
-        if (parts.Count < 3) return new(name, []);
-        return new(name, SplitTopLevel(string.Join(":", parts.Skip(2)), '|').ToArray());
+        var format = parts.Count > 1 ? parts[1] : "";
+        if (parts.Count < 3) return new(name, format, []);
+        return new(name, format, SplitTopLevel(string.Join(":", parts.Skip(2)), '|').ToArray());
     }
 
     private static List<string> SplitTopLevel(string text, char separator)
@@ -339,7 +353,7 @@ internal static class SentenceMatcher
         return parts;
     }
 
-    internal static string Normalize(string text) => Spaces.Replace(Tags.Replace(text.Replace("￼", ""), ""), " ").Trim();
+    internal static string Normalize(string text) => Spaces.Replace(Tags.Replace(text, ""), " ").Trim();
 
     /// <summary>
     /// Sentence spans in a line, split after . ! ? and colons.

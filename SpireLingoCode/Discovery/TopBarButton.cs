@@ -5,7 +5,8 @@ using MegaCrit.Sts2.Core.Nodes.CommonUi;
 namespace SpireLingo.SpireLingoCode.Discovery;
 
 /// <summary>
-/// During a run, the discovery button sits in the game's top bar, just before the map button, sized like it.
+/// During a run, the discovery button sits in the game's top bar, just before the map button, a little smaller
+/// than it (like the bar's other icons with their padding) and centred on it.
 /// It is added to the map button's own box container, so the bar lays it out with the timer, map and deck.
 /// </summary>
 [HarmonyPatch(typeof(NTopBar), nameof(NTopBar._Ready))]
@@ -40,6 +41,7 @@ static class TopBarButton
                 SizeFlagsVertical = Control.SizeFlags.ShrinkCenter
             };
             Ui.GrowOnHover(button);
+            Ui.AttachDiscoveryTip(button, DiscoveryMode.KeyName);
             button.Pressed += () => DiscoveryMode.Instance?.Toggle();
             row.AddChild(button);
             row.MoveChild(button, map.GetIndex());
@@ -54,8 +56,8 @@ static class TopBarButton
     }
 
     /// <summary>
-    /// Keeps the button the size of the map button (known only after layout), shown per the setting, and its
-    /// tooltip naming the key. Returns whether it is on screen.
+    /// Keeps the button at 80% of the map button's height (known only after layout) and shown per the setting.
+    /// Returns whether it is on screen.
     /// </summary>
     internal static bool Update()
     {
@@ -67,14 +69,13 @@ static class TopBarButton
         Button.Visible = SpireLingoConfig.ShowDiscoveryButton;
         if (_map != null && GodotObject.IsInstanceValid(_map) && _map.Size.Y > 0)
         {
-            var size = new Vector2(_map.Size.Y, _map.Size.Y);
+            var size = new Vector2(_map.Size.Y, _map.Size.Y) * 0.8f;
             if (Button.CustomMinimumSize != size)
             {
                 Button.CustomMinimumSize = size;
                 Button.PivotOffset = size / 2;
             }
         }
-        if (Button.TooltipText.Length == 0) Button.TooltipText = DiscoveryMode.ButtonTip();
         return Button.IsVisibleInTree();
     }
 }

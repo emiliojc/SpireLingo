@@ -17,6 +17,7 @@ Requires [BaseLib](https://github.com/Alchyr/BaseLib-StS2).
 In the mod config menu (from BaseLib):
 
 - **Target language**: the language shown in the extra tooltip (default English). Restart the game after changing it.
+- **Translation tooltips**: turn all "Translation" tooltips off at once, to learn only with discovery mode and the vocabulary screen (default on).
 - **Show translation on**: turn the tooltip on or off for cards, relics, potions, powers and enemy intents.
 - **Discovery key**: the key that turns discovery mode on and off (default F8). F2 isn't offered because the game opens its feedback screen with it.
 - **Discovery dimming**: how much the screen darkens in discovery mode (0 to 0.5, default 0.2).

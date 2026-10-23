@@ -79,15 +79,21 @@ internal static class Glossary
     /// </summary>
     public static List<Entry> Lookup(string surface, string? lemma = null)
     {
+        // A word written in lowercase is never a name ("kl" is not Kaiserslautern, "aus" not the town of Au).
+        var lowercase = surface.Length > 0 && char.IsLower(surface[0]);
+        bool Usable(List<Entry>? entries) => entries is { Count: > 0 } && (!lowercase || entries.Any(e => e.Pos != "name"));
+
         foreach (var candidate in new[] { lemma, surface, Capitalize(surface), surface.ToLowerInvariant() })
         {
-            if (candidate == null) continue;
-            if (_entries.TryGetValue(candidate, out var found)) return found;
+            if (candidate != null && _entries.TryGetValue(candidate, out var found) && Usable(found)) return found;
         }
-        if (lemma != null && _lowerLemmas.TryGetValue(lemma.ToLowerInvariant(), out var byLemma)) return _entries[byLemma[0]];
-        if (_forms.TryGetValue(surface.ToLowerInvariant(), out var lemmas))
-            return lemmas.SelectMany(l => _entries.GetValueOrDefault(l) ?? []).ToList();
-        if (_lowerLemmas.TryGetValue(surface.ToLowerInvariant(), out var bySurface)) return _entries[bySurface[0]];
+        if (lemma != null && _lowerLemmas.TryGetValue(lemma.ToLowerInvariant(), out var byLemma) && byLemma.Select(l => _entries[l]).FirstOrDefault(Usable) is { } lemmaEntries)
+            return lemmaEntries;
+        if (_forms.TryGetValue(surface.ToLowerInvariant(), out var lemmas) &&
+            lemmas.SelectMany(l => _entries.GetValueOrDefault(l) ?? []).ToList() is var formEntries && Usable(formEntries))
+            return formEntries;
+        if (_lowerLemmas.TryGetValue(surface.ToLowerInvariant(), out var bySurface) && bySurface.Select(l => _entries[l]).FirstOrDefault(Usable) is { } surfaceEntries)
+            return surfaceEntries;
         return [];
     }
 

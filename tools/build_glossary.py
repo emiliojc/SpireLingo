@@ -39,6 +39,8 @@ LINKING = ["", "s", "n", "en", "e", "es", "er"]
 PARTICLES = {"ab", "an", "auf", "aus", "bei", "dar", "ein", "fest", "fort", "frei", "her", "herab", "heran", "heraus",
              "herbei", "herein", "hin", "hinaus", "hinein", "hinzu", "hoch", "los", "mit", "nach", "nieder", "vor",
              "voran", "voraus", "vorbei", "weg", "weiter", "wieder", "zu", "zurück", "zusammen"}
+# Abbreviations in the game's text and the words they stand for ("Zweigschleim (kl.)", "max. TP").
+ABBREVIATIONS = {"kl": "klein", "mi": "mittel", "max": "maximal"}
 SENTENCE_START = re.compile(r"(^|[.!?:]\s+)([A-ZÄÖÜ])")
 
 
@@ -259,7 +261,7 @@ def build(pck, kaikki_path, model_name):
     surface_counts = Counter()
     for text, doc in zip(samples.values(), docs):
         surface_counts.update(text[t.idx:t.idx + len(t)] for t in doc if WORD.fullmatch(t.text))
-    wanted = set(surface_counts) | {t.lemma_ for doc in docs for t in doc if WORD.fullmatch(t.lemma_)}
+    wanted = set(surface_counts) | {t.lemma_ for doc in docs for t in doc if WORD.fullmatch(t.lemma_)} | set(ABBREVIATIONS.values())
 
     # Compounds the game made up ("Nachziehstapel") are split into words Wiktionary has, which are then
     # loaded too.
@@ -291,23 +293,39 @@ def build(pck, kaikki_path, model_name):
     def known(word):
         return word in entries or word.lower() in lower_entries
 
-    def lemma_for(token):
-        """Wiktionary lemma for a token, preferring spaCy's lemma when Wiktionary has it."""
+    def name_only(lemma):
+        return lemma in entries and all(e["pos"] == "name" for e in entries[lemma])
+
+    def lemma_for(token, surface):
+        """Wiktionary lemma for a token, preferring spaCy's lemma when Wiktionary has it. A word written in
+        lowercase on screen is never a name ("die" is not the Algarve, "aus" not the town of Au), and a
+        capitalised one is a name only when no ordinary word fits."""
+        if surface.lower() in ABBREVIATIONS:
+            return ABBREVIATIONS[surface.lower()]
         candidates = [token.lemma_, token.text]
         if token.pos_ in ("NOUN", "PROPN"):
             candidates.append(token.lemma_[:1].upper() + token.lemma_[1:])
         else:
             candidates.append(token.lemma_.lower())
-        for candidate in candidates:
-            if candidate in entries:
-                return candidate
-        for target in sorted(form_of.get(token.text.lower(), [])):
-            if target in entries:
-                return target
-        for candidate in candidates:
-            if candidate.lower() in lower_entries:
-                return lower_entries[candidate.lower()][0]
-        return token.lemma_
+        # Ordinary words first; a name only for a capitalised word nothing else fits (so "Die" at the start of
+        # a sentence is still the article, not the Algarve).
+        passes = [False, True] if surface[:1].isupper() else [False]
+        for allow_names in passes:
+            usable = lambda lemma: lemma in entries and (allow_names or not name_only(lemma))
+            for candidate in candidates:
+                if usable(candidate):
+                    return candidate
+            # A word with an ordinary entry of its own isn't read as a form of another ("so" is not "So." for
+            # Sonntag, "groß" not "Gros").
+            own = token.text.lower() in entries and not name_only(token.text.lower())
+            for target in [] if own else sorted(form_of.get(token.text.lower(), [])):
+                if usable(target):
+                    return target
+            for candidate in candidates:
+                for lemma in lower_entries.get(candidate.lower(), []):
+                    if usable(lemma):
+                        return lemma
+        return token.lemma_ if surface[:1].isupper() else token.lemma_.lower()
 
     def verb_lemmas(token):
         """Infinitives a word can be a form of ("füge" -> "fügen")."""
@@ -322,12 +340,12 @@ def build(pck, kaikki_path, model_name):
 
     sentences, verbs_used, compounds = {}, set(), {}
     stats = Counter()
-    for (key, _), doc in zip(samples.items(), docs):
+    for (key, text), doc in zip(samples.items(), docs):
         tokens, index_of = [], {}
         for t in doc:
             if WORD.fullmatch(t.text):
                 index_of[t.i] = len(tokens)
-                tokens.append([t.text.lower(), lemma_for(t), SPACY_POS.get(t.pos_, t.pos_.lower())])
+                tokens.append([t.text.lower(), lemma_for(t, text[t.idx:t.idx + len(t)]), SPACY_POS.get(t.pos_, t.pos_.lower())])
 
         def link(verb_token, particle_token, verb):
             v, p = index_of[verb_token.i], index_of[particle_token.i]
@@ -386,12 +404,19 @@ def build(pck, kaikki_path, model_name):
                 glossary[candidate] = entries[candidate]
                 break
 
+    # Lowercase words never point at names ("kl" is not Kaiserslautern); abbreviations point at their word.
+    lowercase_seen = {w.lower() for w in surface_counts if w[:1].islower()}
     forms = {}
     for word in surface_counts:
         low = word.lower()
-        targets = sorted(t for t in form_of.get(low, []) if t in glossary)
+        if low in glossary and not name_only(low):
+            continue
+        targets = sorted(t for t in form_of.get(low, []) if t in glossary and not (low in lowercase_seen and name_only(t)))
         if targets and low not in {g.lower() for g in targets}:
             forms[low] = targets[:3]
+    for short, full in ABBREVIATIONS.items():
+        if full in glossary:
+            forms[short] = [full]
 
     coverage = sum(1 for w in surface_counts if known(w) or w.lower() in form_of or w.lower() in compounds)
     report = {

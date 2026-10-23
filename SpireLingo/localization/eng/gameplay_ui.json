@@ -28,7 +28,6 @@
   "SPIRELINGO-DISCOVERY.looked_up": "looked up {Count}×",
   "SPIRELINGO-DISCOVERY.vocabulary": "Vocabulary",
   "SPIRELINGO-DISCOVERY.button": "Discover",
-  "SPIRELINGO-DISCOVERY.button_tip": "Discovery mode ({Key}): click any word on screen to look it up",
   "SPIRELINGO-VOCAB.title": "Vocabulary",
   "SPIRELINGO-VOCAB.close": "Close (Esc)",
   "SPIRELINGO-VOCAB.sort.last_met": "Last met",
@@ -50,5 +49,7 @@
   "SPIRELINGO-VOCAB.state.recognised": "Recognised",
   "SPIRELINGO-VOCAB.state.known": "Known",
   "SPIRELINGO-VOCAB.state.ignored": "Ignored",
-  "SPIRELINGO-VOCAB.all": "All"
+  "SPIRELINGO-VOCAB.all": "All",
+  "SPIRELINGO-DISCOVERY.button_title": "Discover ({Hotkey})",
+  "SPIRELINGO-DISCOVERY.button_desc": "Click any word on screen to look it up."
 }

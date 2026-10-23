@@ -45,5 +45,7 @@
   "SPIRELINGO-SHOW_DISCOVERY_BUTTON.title": "Discovery button",
   "SPIRELINGO-SHOW_DISCOVERY_BUTTON.hover.desc": "Shows a magnifier button in the top bar (or the top-right corner outside a run) that turns discovery mode on and off.",
   "SPIRELINGO-SHOW_STATE_COLOURS.title": "Word state colours",
-  "SPIRELINGO-SHOW_STATE_COLOURS.hover.desc": "In discovery mode, underlines your saved words on screen: orange for Learning, green for Known, faint teal for Recognised, faint grey for Looked up. Ignored words stay unmarked."
+  "SPIRELINGO-SHOW_STATE_COLOURS.hover.desc": "In discovery mode, underlines your saved words on screen: orange for Learning, green for Known, faint teal for Recognised, faint grey for Looked up. Ignored words stay unmarked.",
+  "SPIRELINGO-SHOW_TRANSLATION_TIPS.title": "Translation tooltips",
+  "SPIRELINGO-SHOW_TRANSLATION_TIPS.hover.desc": "Shows the extra \"Translation\" tooltip next to the game's own. Turn it off to learn only with discovery mode and the vocabulary screen; the switches below then have no effect."
 }
