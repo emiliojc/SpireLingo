@@ -33,6 +33,51 @@ internal static class SentenceMatcher
     private static readonly Dictionary<string, Template> Exact = [];
 
     /// <summary>
+    /// A readable line of the game's text for a "table/key#line" reference, in the game's language or the
+    /// target language: values shown as "X", choices as their first option.
+    /// </summary>
+    public static string? SampleLine(string lineRef, bool target)
+    {
+        var hash = lineRef.LastIndexOf('#');
+        var slash = lineRef.IndexOf('/');
+        if (hash < 0 || slash < 0 || !int.TryParse(lineRef[(hash + 1)..], out var line)) return null;
+        var table = lineRef[..slash];
+        var key = lineRef[(slash + 1)..hash];
+
+        string raw;
+        if (target)
+        {
+            if (!TargetText.TryGetRaw(table, key, out raw)) return null;
+        }
+        else
+        {
+            var tables = LocManager.Instance == null ? null : TablesField(LocManager.Instance);
+            if (tables == null || !tables.TryGetValue(table, out var locTable)) return null;
+            try { raw = locTable.GetRawText(key); }
+            catch { return null; }
+        }
+        var lines = Lines(raw);
+        return Normalize(Sample(lines.Count > line ? lines[line] : raw));
+    }
+
+    private static string Sample(string raw)
+    {
+        var result = new StringBuilder();
+        foreach (var (isPlaceholder, part) in Split(raw))
+        {
+            if (!isPlaceholder)
+            {
+                result.Append(part);
+                continue;
+            }
+            var placeholder = Parse(part);
+            var option = placeholder.Options.FirstOrDefault(o => o.Trim().Length > 0);
+            result.Append(option != null ? Sample(option.Replace("{}", "X")) : "X");
+        }
+        return result.ToString();
+    }
+
+    /// <summary>
     /// Tries the whole line first, then the sentence inside it that contains <paramref name="wordIndex"/>.
     /// </summary>
     public static Match? Find(string line, int wordIndex)

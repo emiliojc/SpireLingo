@@ -1,6 +1,6 @@
 using Godot;
-using MegaCrit.Sts2.Core.Localization;
 using SpireLingo.SpireLingoCode.Patches;
+using static SpireLingo.SpireLingoCode.Discovery.Ui;
 
 namespace SpireLingo.SpireLingoCode.Discovery;
 
@@ -12,7 +12,11 @@ public partial class DiscoveryMode : CanvasLayer
 {
     public static bool IsActive { get; private set; }
 
-    private static readonly Color HighlightColor = new(1f, 0.85f, 0.3f);
+    /// <summary>
+    /// The one discovery layer, for the main menu's Vocabulary button.
+    /// </summary>
+    public static DiscoveryMode? Instance { get; private set; }
+
     private const ulong HoverIntervalMs = 40;
 
     private ColorRect _dim = null!;
@@ -21,6 +25,9 @@ public partial class DiscoveryMode : CanvasLayer
     private Node2D _partnerMark = null!;
     private PanelContainer _badge = null!;
     private Label _badgeLabel = null!;
+    private Button _badgeVocabulary = null!;
+    private Button _cornerButton = null!;
+    private VocabularyScreen _vocabulary = null!;
     private PanelContainer _popup = null!;
     private Label _popupWord = null!;
     private Button _learningChip = null!;
@@ -55,6 +62,7 @@ public partial class DiscoveryMode : CanvasLayer
     {
         Layer = 128;
         ProcessMode = ProcessModeEnum.Always;
+        Instance = this;
         WordFinder.Track(GetTree());
 
         _dim = new ColorRect { MouseFilter = Control.MouseFilterEnum.Ignore, Visible = false };
@@ -65,14 +73,22 @@ public partial class DiscoveryMode : CanvasLayer
         _selectedMark = MakeMark(0.3f);
         _partnerMark = MakeMark(0.3f);
 
-        _badgeLabel = new Label { HorizontalAlignment = HorizontalAlignment.Center };
+        _badgeLabel = new Label { HorizontalAlignment = HorizontalAlignment.Center, VerticalAlignment = VerticalAlignment.Center };
         _badgeLabel.AddThemeFontSizeOverride("font_size", 22);
-        _badge = Panel(_badgeLabel, new Color(0.08f, 0.1f, 0.12f, 0.9f));
+        _badgeVocabulary = MakeButton(fontSize: 18);
+        _badgeVocabulary.Pressed += OpenVocabulary;
+        var badgeRow = new HBoxContainer();
+        badgeRow.AddThemeConstantOverride("separation", 16);
+        badgeRow.AddChild(_badgeLabel);
+        badgeRow.AddChild(_badgeVocabulary);
+        _badge = Panel(badgeRow, new Color(0.08f, 0.1f, 0.12f, 0.9f));
         _badge.MouseFilter = Control.MouseFilterEnum.Ignore;
         _badge.Visible = false;
         AddChild(_badge);
 
         BuildPopup();
+        BuildCornerButton();
+        _vocabulary = new VocabularyScreen(this);
     }
 
     public override void _Process(double delta)
@@ -80,6 +96,8 @@ public partial class DiscoveryMode : CanvasLayer
         // Stay the last child of the root so this node sees input before anything the game adds later.
         if (GetParent() is { } parent && GetIndex() != parent.GetChildCount() - 1) parent.MoveChild(this, -1);
         WordStore.Tick();
+        _vocabulary.Tick();
+        UpdateCornerButton();
         if (!IsActive) return;
 
         TipKeeper.Update(GetViewport().GetMousePosition(), _selected is { } selected && GodotObject.IsInstanceValid(selected.Label) ? selected.Label : null);
@@ -99,8 +117,20 @@ public partial class DiscoveryMode : CanvasLayer
 
     public override void _ExitTree() => WordStore.Flush();
 
+    public override void _UnhandledInput(InputEvent @event)
+    {
+        // Nothing the vocabulary screen didn't use reaches the game either.
+        if (_vocabulary.IsOpen) GetViewport().SetInputAsHandled();
+    }
+
     public override void _Input(InputEvent @event)
     {
+        if (_vocabulary.IsOpen)
+        {
+            if (_vocabulary.TakeInput(@event)) GetViewport().SetInputAsHandled();
+            return;
+        }
+
         if (@event is InputEventKey { Pressed: true, Echo: false } key)
         {
             if (key.Keycode == ToggleKey)
@@ -119,8 +149,8 @@ public partial class DiscoveryMode : CanvasLayer
         if (!IsActive) return;
 
         var mouse = GetViewport().GetMousePosition();
-        // The popup's own button keeps working.
-        if (@event is InputEventMouse && _popup.Visible && _popup.GetGlobalRect().HasPoint(mouse)) return;
+        // The mod's own buttons (popup, badge, corner button) keep working.
+        if (@event is InputEventMouse && new Control[] { _popup, _badge, _cornerButton }.Any(c => c.Visible && c.GetGlobalRect().HasPoint(mouse))) return;
 
         switch (@event)
         {
@@ -178,6 +208,7 @@ public partial class DiscoveryMode : CanvasLayer
         {
             _seenLines.Clear();
             _badgeLabel.Text = Text("SPIRELINGO-DISCOVERY.badge").Replace("{Key}", ToggleKey.ToString());
+            _badgeVocabulary.Text = Text("SPIRELINGO-DISCOVERY.vocabulary");
             _badge.ResetSize();
             _badge.Position = new Vector2((GetViewport().GetVisibleRect().Size.X - _badge.Size.X) / 2, 16);
             TipKeeper.HideTips(TranslationTips.TipTitleText);
@@ -186,6 +217,47 @@ public partial class DiscoveryMode : CanvasLayer
         {
             TipKeeper.Flush();
             WordStore.Flush();
+        }
+    }
+
+    /// <summary>
+    /// Opens the vocabulary screen, leaving discovery mode first.
+    /// </summary>
+    public void OpenVocabulary()
+    {
+        SetActive(false);
+        _vocabulary.Open();
+    }
+
+    /// <summary>
+    /// A small button on every screen that turns discovery mode on and off, so players learn it works anywhere.
+    /// It is faint until hovered and covers only its own small rectangle.
+    /// </summary>
+    private void BuildCornerButton()
+    {
+        _cornerButton = MakeButton(fontSize: 16);
+        _cornerButton.Modulate = new Color(1, 1, 1, 0.45f);
+        _cornerButton.MouseEntered += () => _cornerButton.Modulate = Colors.White;
+        _cornerButton.MouseExited += () => _cornerButton.Modulate = new Color(1, 1, 1, 0.45f);
+        _cornerButton.Pressed += () => SetActive(!IsActive);
+        _cornerButton.Position = new Vector2(8, 470);
+        AddChild(_cornerButton);
+    }
+
+    private void UpdateCornerButton()
+    {
+        var show = SpireLingoConfig.ShowDiscoveryButton && !_vocabulary.IsOpen;
+        if (_cornerButton.Visible != show) _cornerButton.Visible = show;
+        // The game's text isn't loaded when the layer is built, so the label is filled in once it is.
+        if (!show || _cornerButton.Text.Length > 0) return;
+        try
+        {
+            _cornerButton.Text = Text("SPIRELINGO-DISCOVERY.button");
+            _cornerButton.TooltipText = Text("SPIRELINGO-DISCOVERY.button_tip").Replace("{Key}", ToggleKey.ToString());
+        }
+        catch
+        {
+            // Not loaded yet; try again next frame.
         }
     }
 
@@ -358,15 +430,6 @@ public partial class DiscoveryMode : CanvasLayer
                Escape(line[(second.index + second.length)..]);
     }
 
-    private static string Article(string? gender) => gender switch
-    {
-        "m" => "der ",
-        "f" => "die ",
-        "n" => "das ",
-        { Length: > 1 } => string.Join("/", gender.Select(g => g switch { 'm' => "der", 'f' => "die", _ => "das" })) + " ",
-        _ => ""
-    };
-
     private void ToggleSentence()
     {
         if (_selected == null) return;
@@ -439,40 +502,6 @@ public partial class DiscoveryMode : CanvasLayer
         return chip;
     }
 
-    private static RichTextLabel MakeText(Color color)
-    {
-        var text = new RichTextLabel
-        {
-            BbcodeEnabled = true,
-            FitContent = true,
-            ScrollActive = false,
-            AutowrapMode = TextServer.AutowrapMode.WordSmart,
-            CustomMinimumSize = new Vector2(420, 0),
-            MouseFilter = Control.MouseFilterEnum.Ignore
-        };
-        text.AddThemeFontSizeOverride("normal_font_size", 20);
-        text.AddThemeFontSizeOverride("bold_font_size", 20);
-        text.AddThemeFontSizeOverride("italics_font_size", 20);
-        text.AddThemeColorOverride("default_color", color);
-        return text;
-    }
-
-    private static PanelContainer Panel(Control content, Color background)
-    {
-        var style = new StyleBoxFlat
-        {
-            BgColor = background,
-            BorderColor = HighlightColor with { A = 0.7f },
-            ContentMarginLeft = 16, ContentMarginRight = 16, ContentMarginTop = 12, ContentMarginBottom = 12
-        };
-        style.SetBorderWidthAll(2);
-        style.SetCornerRadiusAll(8);
-        var panel = new PanelContainer();
-        panel.AddThemeStyleboxOverride("panel", style);
-        panel.AddChild(content);
-        return panel;
-    }
-
     /// <summary>
     /// A highlight drawn in a label's own space: a light fill and an underline, moved along with the label.
     /// </summary>
@@ -522,20 +551,4 @@ public partial class DiscoveryMode : CanvasLayer
         }
         _badgeLabel.AddThemeFontOverride("font", font);
     }
-
-    private static string Text(string key) => new LocString("gameplay_ui", key).GetRawText();
-
-    private static string Text(string key, string fallback)
-    {
-        try
-        {
-            return Text(key);
-        }
-        catch
-        {
-            return fallback;
-        }
-    }
-
-    private static string Escape(string text) => text.Replace("[", "[lb]");
 }

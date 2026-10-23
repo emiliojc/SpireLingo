@@ -41,5 +41,7 @@
   "SPIRELINGO-DISCOVERY_KEY.F9": "F9",
   "SPIRELINGO-DISCOVERY_KEY.F10": "F10",
   "SPIRELINGO-DISCOVERY_DIM.title": "Abdunkeln im Entdeckungsmodus",
-  "SPIRELINGO-DISCOVERY_DIM.hover.desc": "Wie stark der Bildschirm im Entdeckungsmodus abgedunkelt wird, damit klar ist, dass das Spiel keine Klicks annimmt. 0 schaltet es aus."
+  "SPIRELINGO-DISCOVERY_DIM.hover.desc": "Wie stark der Bildschirm im Entdeckungsmodus abgedunkelt wird, damit klar ist, dass das Spiel keine Klicks annimmt. 0 schaltet es aus.",
+  "SPIRELINGO-SHOW_DISCOVERY_BUTTON.title": "Entdecken-Knopf",
+  "SPIRELINGO-SHOW_DISCOVERY_BUTTON.hover.desc": "Zeigt am linken Rand jedes Bildschirms einen kleinen „Entdecken“-Knopf, der den Entdeckungsmodus ein- und ausschaltet."
 }

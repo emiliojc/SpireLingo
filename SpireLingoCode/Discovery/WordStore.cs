@@ -56,6 +56,18 @@ internal static class WordStore
     private static string? _loadedFor;
     private static ulong? _dirtySince;
 
+    /// <summary>
+    /// Every saved word, for the vocabulary screen.
+    /// </summary>
+    public static IReadOnlyCollection<WordRecord> All
+    {
+        get
+        {
+            EnsureLoaded();
+            return Words.Values;
+        }
+    }
+
     public static WordRecord? Get(string lemma)
     {
         EnsureLoaded();
