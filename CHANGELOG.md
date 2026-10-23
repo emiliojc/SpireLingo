@@ -1,0 +1,47 @@
+# Changelog
+
+All notable changes to SpireLingo. Versions follow [Semantic Versioning](https://semver.org/); the version
+lives in `SpireLingo.json` and is copied into the DLL at build time.
+
+## 0.3.1 - 2026-10-23
+
+### Changed
+- Finding the word under the mouse no longer walks the whole scene tree on every mouse move; the mod keeps
+  track of the game's text labels instead.
+- Rich text is measured once per lookup instead of once per line.
+
+### Fixed
+- In discovery mode, moving onto an open tooltip no longer opens the tooltip of an enemy lying under it.
+- The highlight on a separable verb's other half no longer stays on screen after leaving discovery mode.
+- At most 16 enemy-intent translations wait to be shown, so they can't pile up.
+
+## 0.3.0 - 2026-10-23
+
+### Added
+- Glossary in the discovery popup: the word's base form (with article and plural for nouns), part of speech
+  and numbered English meanings, from English Wiktionary (via kaikki.org, CC BY-SA 4.0).
+- Compound words without an entry are explained by their parts (Nachziehstapel = nach + ziehen + Stapel).
+- Separable verbs: clicking either half ("Füge" or "zu" in "Füge 6 Schaden zu.") shows the whole verb
+  (zufügen), underlines the other half on screen, and explains that the particle moves to the end.
+- `tools/build_glossary.py` builds the glossary and sentence data from the game's German text, and the README
+  explains how to rebuild them. Covers 88.5% of the game's 7,716 distinct German words.
+
+## 0.2.0 - 2026-10-23
+
+### Added
+- Discovery mode: press F8 (configurable) to pause input and dim the screen, point at any word on screen to
+  highlight it, and click it for a popup. Esc or F8 leaves.
+- "Show sentence" in the popup shows the whole sentence in the target language, with the game's numbers.
+- Settings for the discovery key and how much the screen dims.
+
+### Changed
+- Translation tooltips are hidden while discovery mode is on.
+- In discovery mode, tooltips open and close as usual but stay while the mouse is on them, and a card stays
+  lifted while one of its words is selected.
+
+## 0.1.0 - 2026-10-23
+
+### Added
+- Translation tooltip: hovering a card, relic, potion, power or enemy intent shows its text in a second
+  language, with the same numbers as the game, using the game's own translations.
+- Settings for the target language and which tooltips to show.
