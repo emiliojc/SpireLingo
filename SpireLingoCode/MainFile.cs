@@ -15,6 +15,12 @@ public partial class MainFile : Node
 
     public static MegaCrit.Sts2.Core.Logging.Logger Logger { get; } = new(ModId, MegaCrit.Sts2.Core.Logging.LogType.Generic);
 
+    /// <summary>
+    /// The version from SpireLingo.json, which the build copies into the assembly.
+    /// </summary>
+    public static string Version { get; } =
+        Assembly.GetExecutingAssembly().GetCustomAttribute<AssemblyInformationalVersionAttribute>()?.InformationalVersion.Split('+')[0] ?? "?";
+
     public static void Initialize()
     {
         var assembly = Assembly.GetExecutingAssembly();
@@ -28,6 +34,6 @@ public partial class MainFile : Node
 
         DiscoveryMode.Install();
 
-        Logger.Info($"Loaded; target language is {SpireLingoConfig.TargetLanguage}");
+        Logger.Info($"Loaded version {Version}; target language is {SpireLingoConfig.TargetLanguage}");
     }
 }

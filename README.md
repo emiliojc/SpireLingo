@@ -6,6 +6,8 @@ Example: with the game set to German and the target language set to English, hov
 
 **Discovery mode**: press **F8** (configurable) to pause input and dim the screen, then point at any word on screen (cards, tooltips, events, dialogue, menus) to highlight it and click it for a popup. The popup shows the word's base form (with article and plural for nouns), its English meanings, the parts of compound words, and for separable verbs like "Füge … zu" (zufügen) the other half of the verb, marked on screen. A "Show sentence" button shows the whole sentence in the target language. Press F8 again or Esc to leave. Word meanings are currently German to English.
 
+See [CHANGELOG.md](CHANGELOG.md) for what changed in each version.
+
 Requires [BaseLib](https://github.com/Alchyr/BaseLib-StS2).
 
 ## Settings
@@ -18,6 +20,12 @@ In the mod config menu (from BaseLib):
 - **Discovery dimming**: how much the screen darkens in discovery mode (0 to 0.5, default 0.2).
 
 The tooltip only appears when the game's language is different from the target language.
+
+## Releasing a version
+
+1. Raise `version` in `SpireLingo.json` (it is copied into the DLL when building).
+2. Add a section for it at the top of `CHANGELOG.md`.
+3. Build and publish as below.
 
 ## Building
 

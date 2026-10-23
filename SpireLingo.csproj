@@ -13,6 +13,12 @@
     </PropertyGroup>
 
     <PropertyGroup>
+        <!-- The mod's version lives in SpireLingo.json ("v0.3.1"); the DLL gets the same number. -->
+        <ModManifestText>$([System.IO.File]::ReadAllText('$(MSBuildProjectDirectory)/$(MSBuildProjectName).json'))</ModManifestText>
+        <Version>$([System.Text.RegularExpressions.Regex]::Match($(ModManifestText), '"version":\s*"v?([^"]+)"').Result('$1'))</Version>
+    </PropertyGroup>
+
+    <PropertyGroup>
         <!-- Diasble architecture mismatch warning; mods are ideally built for all platforms (MSIL)
              while your local StS2 version will be for your specific platform. -->
         <NoWarn>$(NoWarn);MSB3270</NoWarn> 
