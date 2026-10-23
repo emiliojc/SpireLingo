@@ -1,7 +1,5 @@
 using Godot;
-using HarmonyLib;
 using MegaCrit.Sts2.Core.Localization;
-using MegaCrit.Sts2.Core.Nodes.HoverTips;
 using SpireLingo.SpireLingoCode.Patches;
 
 namespace SpireLingo.SpireLingoCode.Discovery;
@@ -69,6 +67,10 @@ public partial class DiscoveryMode : CanvasLayer
         if (GetParent() is { } parent && GetIndex() != parent.GetChildCount() - 1) parent.MoveChild(this, -1);
         if (!IsActive) return;
 
+        TipKeeper.Update(GetViewport().GetMousePosition(), _selected is { } selected && GodotObject.IsInstanceValid(selected.Label) ? selected.Label : null);
+        // The popup belongs to its word; when the word's label goes away (a tooltip closed), so does the popup.
+        if (_selected != null && (!GodotObject.IsInstanceValid(_selected.Label) || !_selected.Label.IsVisibleInTree())) Select(null);
+        if (_hovered != null && !GodotObject.IsInstanceValid(_hovered.Label)) _hovered = null;
         Place(_hoverMark, _hovered);
         Place(_selectedMark, _selected);
     }
@@ -98,10 +100,14 @@ public partial class DiscoveryMode : CanvasLayer
 
         switch (@event)
         {
-            case InputEventMouseMotion when Time.GetTicksMsec() - _lastHoverMs >= HoverIntervalMs:
-                _lastHoverMs = Time.GetTicksMsec();
-                _hovered = Find(mouse);
-                break;
+            case InputEventMouseMotion:
+                if (Time.GetTicksMsec() - _lastHoverMs >= HoverIntervalMs)
+                {
+                    _lastHoverMs = Time.GetTicksMsec();
+                    _hovered = Find(mouse);
+                }
+                // Movement still reaches the game, so its tooltips open and close as usual.
+                return;
             case InputEventMouseButton { ButtonIndex: MouseButton.Left, Pressed: true }:
                 _hovered = Find(mouse);
                 Select(_hovered);
@@ -149,8 +155,7 @@ public partial class DiscoveryMode : CanvasLayer
         }
         else
         {
-            // Tips kept open during the mode would otherwise stay until something else clears them.
-            NHoverTipSet.Clear();
+            TipKeeper.Flush();
         }
     }
 
@@ -319,19 +324,4 @@ public partial class DiscoveryMode : CanvasLayer
     private static string Text(string key) => new LocString("gameplay_ui", key).GetRawText();
 
     private static string Escape(string text) => text.Replace("[", "[lb]");
-}
-
-/// <summary>
-/// While discovery mode is on, tooltips stay open so their words can be clicked.
-/// </summary>
-[HarmonyPatch(typeof(NHoverTipSet))]
-static class KeepTipsOpenPatch
-{
-    [HarmonyPrefix]
-    [HarmonyPatch(nameof(NHoverTipSet.Remove))]
-    static bool Remove() => !DiscoveryMode.IsActive;
-
-    [HarmonyPrefix]
-    [HarmonyPatch(nameof(NHoverTipSet.Clear))]
-    static bool Clear() => !DiscoveryMode.IsActive;
 }
