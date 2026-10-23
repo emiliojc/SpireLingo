@@ -6,14 +6,15 @@ lives in `SpireLingo.json` and is copied into the DLL at build time.
 ## 0.5.0 - 2026-10-23
 
 ### Added
-- Vocabulary screen: your saved words in tabs by state (Learning, Recognised, Known, Looked up, Seen, Ignored),
-  with search (just type) and sorting by last met, look-ups or how common the word is in the game. Clicking a
-  word opens its page: base form with article and plural, all meanings, compound parts or separable-verb note,
-  the Wiktionary example, up to five game sentences that use it with their English line, its history, and the
-  Learning · Known · Ignore chips. Esc or Close leaves it.
+- Vocabulary screen: your saved words, all of them in the All tab (where it opens) or by state (Learning,
+  Recognised, Known, Looked up, Seen, Ignored), with search (just type) and sorting by last met, look-ups or how
+  common the word is in the game. Clicking a word opens its page: base form with article and plural, all
+  meanings, compound parts or separable-verb note, the Wiktionary example, up to five different game sentences
+  you met it in with their English line, its history, and the Learning · Known · Ignore chips. Esc or Close
+  leaves it.
 - A "Vocabulary" button in the main menu (below Compendium) and on the discovery badge open it.
 - A small "Discover" button on the left edge of every screen, main menu included, turns discovery mode on and
-  off and shows its key when hovered. A setting hides it.
+  off and shows its key when hovered. A setting hides it. Its icon is the game's magnifying-glass cursor.
 
 ## 0.4.0 - 2026-10-23
 

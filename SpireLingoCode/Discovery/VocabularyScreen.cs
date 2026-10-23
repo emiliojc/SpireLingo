@@ -5,7 +5,7 @@ using static SpireLingo.SpireLingoCode.Discovery.Ui;
 namespace SpireLingo.SpireLingoCode.Discovery;
 
 /// <summary>
-/// The player's words: a list with a tab per state (and one with every glossary word), search and sorting, and a page for the chosen word with all
+/// The player's saved words: a list with an All tab and a tab per state, search and sorting, and a page for the chosen word with all
 /// its meanings, the game sentences it appears in, and its history. Built from plain Godot controls on the
 /// discovery layer; while it is open it takes every key (typing goes to the search) and covers the game.
 /// </summary>
@@ -18,7 +18,7 @@ internal sealed class VocabularyScreen
         Frequency
     }
 
-    // Null is the "All" tab: every word in the glossary, saved or not.
+    // Null is the "All" tab: every saved word, whatever its state.
     private static readonly WordState?[] Tabs =
         [null, WordState.Learning, WordState.Recognised, WordState.Known, WordState.LookedUp, WordState.Seen, WordState.Ignored];
 
@@ -166,9 +166,7 @@ internal sealed class VocabularyScreen
         _chipButtons[WordState.Ignored].Text = Text("SPIRELINGO-DISCOVERY.state.ignore");
         _query = "";
         _root.Visible = true;
-        // Open on the first state that has words, or on All for a new list.
-        var counts = WordStore.All.GroupBy(r => r.State).ToDictionary(g => g.Key, g => g.Count());
-        ShowTab(Tabs.FirstOrDefault(t => t != null && counts.GetValueOrDefault(t.Value) > 0));
+        ShowTab(null);
     }
 
     public void Close()
@@ -237,34 +235,29 @@ internal sealed class VocabularyScreen
         var counts = saved.GroupBy(r => r.State).ToDictionary(g => g.Key, g => g.Count());
         for (var i = 0; i < Tabs.Length; i++)
         {
-            var count = Tabs[i] is { } state ? counts.GetValueOrDefault(state) : Glossary.AllLemmas.Count;
+            var count = Tabs[i] is { } state ? counts.GetValueOrDefault(state) : saved.Count;
             _tabs[i].Text = $"{(Tabs[i] is { } s ? StateName(s) : Text("SPIRELINGO-VOCAB.all"))} ({count})";
             _tabs[i].SetPressedNoSignal(Tabs[i] == _tab);
         }
         foreach (var (sort, button) in _sorts) button.SetPressedNoSignal(sort == _sort);
 
-        // Each word with its record, if it has one; the All tab adds every glossary word not saved yet.
-        var words = _tab is { } tab
-            ? saved.Where(r => r.State == tab).Select(r => (lemma: r.Lemma, record: (WordRecord?)r))
-            : Glossary.AllLemmas.Select(l => (lemma: l, record: WordStore.Get(l)))
-                .Concat(saved.Where(r => !Glossary.AllLemmas.Contains(r.Lemma)).Select(r => (lemma: r.Lemma, record: (WordRecord?)r)));
-        words = words.Where(w => Matches(w.lemma));
+        var words = saved.Where(r => (_tab == null || r.State == _tab) && Matches(r.Lemma));
         words = _sort switch
         {
-            Sort.Lookups => words.OrderByDescending(w => w.record?.Lookups ?? -1).ThenBy(w => w.lemma),
-            Sort.Frequency => words.OrderByDescending(w => Glossary.Frequency(w.lemma)).ThenBy(w => w.lemma),
-            _ => words.OrderByDescending(w => w.record?.LastSeen ?? DateTime.MinValue).ThenBy(w => w.lemma)
+            Sort.Lookups => words.OrderByDescending(r => r.Lookups).ThenByDescending(r => r.LastSeen),
+            Sort.Frequency => words.OrderByDescending(r => Glossary.Frequency(r.Lemma)).ThenBy(r => r.Lemma),
+            _ => words.OrderByDescending(r => r.LastSeen)
         };
         var list = words.ToList();
 
         foreach (var child in _rows.GetChildren()) child.QueueFree();
-        foreach (var (lemma, record) in list.Take(MaxRows)) _rows.AddChild(Row(lemma, record));
+        foreach (var record in list.Take(MaxRows)) _rows.AddChild(Row(record));
         _empty.Visible = list.Count == 0 || list.Count > MaxRows;
         _empty.Text = list.Count == 0
             ? Text("SPIRELINGO-VOCAB.empty")
             : Text("SPIRELINGO-VOCAB.more").Replace("{Count}", (list.Count - MaxRows).ToString());
 
-        if (_shown == null || list.All(w => w.lemma != _shown)) ShowWord(list.FirstOrDefault().lemma);
+        if (_shown == null || list.All(r => r.Lemma != _shown)) ShowWord(list.FirstOrDefault()?.Lemma);
     }
 
     private bool Matches(string lemma)
@@ -274,14 +267,14 @@ internal sealed class VocabularyScreen
         return Glossary.EntriesFor(lemma).Any(e => e.Senses.Any(s => s.Contains(_query, StringComparison.OrdinalIgnoreCase)));
     }
 
-    private Button Row(string lemma, WordRecord? record)
+    private Button Row(WordRecord record)
     {
+        var lemma = record.Lemma;
         var entry = Glossary.EntriesFor(lemma).FirstOrDefault();
         var meaning = entry?.Senses.FirstOrDefault() ?? "";
         if (meaning.Length > 48) meaning = meaning[..47] + "…";
-        // Words that aren't saved show no state.
-        var state = record == null ? "" : $"   ({StateName(record.State)}{(record.Lookups > 0 ? $" · {record.Lookups}×" : "")})";
-        var row = MakeButton($"{Article(entry?.Gender)}{lemma}   {meaning}{state}", 17);
+        var lookups = record.Lookups > 0 ? $" · {record.Lookups}×" : "";
+        var row = MakeButton($"{Article(entry?.Gender)}{lemma}   {meaning}   ({StateName(record.State)}{lookups})", 17);
         row.Alignment = HorizontalAlignment.Left;
         row.Flat = true;
         row.ClipText = true;
@@ -290,15 +283,10 @@ internal sealed class VocabularyScreen
         return row;
     }
 
-    /// <summary>
-    /// A chip on the word page. This is the only thing on the screen that saves a word.
-    /// </summary>
     private void Choose(WordState state)
     {
-        if (_shown == null) return;
-        var record = WordStore.Get(_shown);
-        if (record == null) WordStore.Save(_shown, state);
-        else WordStore.Choose(record, record.State == state ? WordState.LookedUp : state);
+        if (_shown == null || WordStore.Get(_shown) is not { } record) return;
+        WordStore.Choose(record, record.State == state ? WordState.LookedUp : state);
         ShowWord(_shown);
         Refresh();
     }
@@ -316,7 +304,6 @@ internal sealed class VocabularyScreen
             _pageBody.Text = "";
             return;
         }
-        // Opening a page only reads the word; it is saved when a chip is clicked.
         var record = WordStore.Get(lemma);
         foreach (var (state, chip) in _chipButtons) chip.SetPressedNoSignal(record?.State == state);
 
@@ -357,11 +344,7 @@ internal sealed class VocabularyScreen
 
         body.Add("");
         body.Add(Heading("SPIRELINGO-VOCAB.history"));
-        if (record == null)
-        {
-            body.Add($"[color=#{MutedColor.ToHtml(false)}]{Escape(Text("SPIRELINGO-VOCAB.not_saved"))}[/color]");
-        }
-        else
+        if (record != null)
         {
             body.Add($"{Text("SPIRELINGO-VOCAB.first_met")} {record.FirstSeen.ToLocalTime():d} · " +
                      $"{Text("SPIRELINGO-DISCOVERY.looked_up").Replace("{Count}", record.Lookups.ToString())} · " +
@@ -380,14 +363,12 @@ internal sealed class VocabularyScreen
     private static string Heading(string key) => $"[b][color=#{HighlightColor.ToHtml(false)}]{Escape(Text(key))}[/color][/b]";
 
     /// <summary>
-    /// Up to five different game lines using the word, the player's own first, each with the target-language
-    /// line. Lines that read the same once values are X ("Füge X Schaden zu." on many cards) appear once.
+    /// The game lines the player met the word in (newest first), each with the target-language line. Lines that
+    /// read the same once values are X ("Füge X Schaden zu." on many cards) appear once.
     /// </summary>
     private static IEnumerable<string> SeenIn(string lemma, WordRecord? record)
     {
-        var refs = (record?.Contexts.AsEnumerable().Reverse() ?? [])
-            .Concat(Glossary.LinesWith(lemma).OrderBy(TableRank))
-            .Distinct();
+        var refs = (record?.Contexts.AsEnumerable().Reverse() ?? []).Distinct();
         var seen = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
         foreach (var lineRef in refs)
         {
@@ -398,15 +379,6 @@ internal sealed class VocabularyScreen
             yield return $"• {Bold(german, Glossary.SurfacesOf(lineRef, lemma).Append(lemma))}" +
                          (string.IsNullOrWhiteSpace(english) ? "" : $"\n   [color=#{MutedColor.ToHtml(false)}]{Escape(english)}[/color]");
         }
-    }
-
-    // Cards and the like first: they are what the player reads most.
-    private static readonly string[] PreferredTables = ["cards", "relics", "powers", "potions", "events", "monsters", "ancients"];
-
-    private static int TableRank(string lineRef)
-    {
-        var index = Array.IndexOf(PreferredTables, lineRef[..Math.Max(0, lineRef.IndexOf('/'))]);
-        return index < 0 ? PreferredTables.Length : index;
     }
 
     /// <summary>

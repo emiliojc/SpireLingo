@@ -58,7 +58,6 @@ internal static class Glossary
         _lines = [];
         _linesByLemma = null;
         _separable = null;
-        _allLemmas = null;
 
         var glossaryPath = $"res://SpireLingo/data/glossary_{from}_{to}.json";
         var sentencesPath = $"res://SpireLingo/data/sentences_{from}.json";
@@ -91,13 +90,6 @@ internal static class Glossary
         if (_lowerLemmas.TryGetValue(surface.ToLowerInvariant(), out var bySurface)) return _entries[bySurface[0]];
         return [];
     }
-
-    /// <summary>
-    /// Every base form in the glossary.
-    /// </summary>
-    public static IReadOnlySet<string> AllLemmas => _allLemmas ??= _entries.Keys.ToHashSet();
-
-    private static HashSet<string>? _allLemmas;
 
     /// <summary>
     /// The entries for exactly this base form.

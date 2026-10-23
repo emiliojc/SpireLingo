@@ -50,6 +50,5 @@
   "SPIRELINGO-VOCAB.state.recognised": "Wiedererkannt",
   "SPIRELINGO-VOCAB.state.known": "Kenne ich",
   "SPIRELINGO-VOCAB.state.ignored": "Ignoriert",
-  "SPIRELINGO-VOCAB.all": "Alle",
-  "SPIRELINGO-VOCAB.not_saved": "Noch nicht gespeichert. Wähle „Lerne ich“, „Kenne ich“ oder „Ignorieren“, um es zu speichern."
+  "SPIRELINGO-VOCAB.all": "Alle"
 }
