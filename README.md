@@ -6,6 +6,8 @@ Example: with the game set to German and the target language set to English, hov
 
 **Discovery mode**: press **F8** (configurable) to pause input and dim the screen, then point at any word on screen (cards, tooltips, events, dialogue, menus) to highlight it and click it for a popup. The popup shows the word's base form (with article and plural for nouns), its English meanings, the parts of compound words, and for separable verbs like "Füge … zu" (zufügen) the other half of the verb, marked on screen. A "Show sentence" button shows the whole sentence in the target language. Press F8 again or Esc to leave. Word meanings are currently German to English.
 
+**Vocabulary**: every word you click is saved with its state (Learning, Known, Ignore, or looked up/seen automatically). Open the Vocabulary screen from the main menu or the discovery badge to browse your words by state, search them, and read each word's page with all its meanings, an example, and the game sentences that use it. A small "Discover" button on the left edge of every screen also turns discovery mode on.
+
 See [CHANGELOG.md](CHANGELOG.md) for what changed in each version.
 
 Requires [BaseLib](https://github.com/Alchyr/BaseLib-StS2).
@@ -18,6 +20,7 @@ In the mod config menu (from BaseLib):
 - **Show translation on**: turn the tooltip on or off for cards, relics, potions, powers and enemy intents.
 - **Discovery key**: the key that turns discovery mode on and off (default F8). F2 isn't offered because the game opens its feedback screen with it.
 - **Discovery dimming**: how much the screen darkens in discovery mode (0 to 0.5, default 0.2).
+- **Discovery button**: show the small "Discover" button on every screen (default on).
 
 The tooltip only appears when the game's language is different from the target language.
 
