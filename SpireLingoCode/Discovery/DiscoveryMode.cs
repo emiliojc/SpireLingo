@@ -23,6 +23,10 @@ public partial class DiscoveryMode : CanvasLayer
     private Label _badgeLabel = null!;
     private PanelContainer _popup = null!;
     private Label _popupWord = null!;
+    private Button _learningChip = null!;
+    private Button _knownChip = null!;
+    private Button _ignoreChip = null!;
+    private Label _lookupCount = null!;
     private RichTextLabel _popupInfo = null!;
     private RichTextLabel _popupContext = null!;
     private Button _sentenceButton = null!;
@@ -32,6 +36,10 @@ public partial class DiscoveryMode : CanvasLayer
     private FoundWord? _selected;
     private FoundWord? _partner;
     private SentenceMatcher.Match? _match;
+    private WordRecord? _record;
+
+    // Lines already counted as seen in this discovery session.
+    private readonly HashSet<string> _seenLines = [];
     private ulong _lastHoverMs;
 
     /// <summary>
@@ -71,6 +79,7 @@ public partial class DiscoveryMode : CanvasLayer
     {
         // Stay the last child of the root so this node sees input before anything the game adds later.
         if (GetParent() is { } parent && GetIndex() != parent.GetChildCount() - 1) parent.MoveChild(this, -1);
+        WordStore.Tick();
         if (!IsActive) return;
 
         TipKeeper.Update(GetViewport().GetMousePosition(), _selected is { } selected && GodotObject.IsInstanceValid(selected.Label) ? selected.Label : null);
@@ -81,6 +90,14 @@ public partial class DiscoveryMode : CanvasLayer
         Place(_selectedMark, _selected);
         Place(_partnerMark, _selected == null ? null : _partner);
     }
+
+    public override void _Notification(int what)
+    {
+        // Save the word list when the game is closed.
+        if (what == NotificationWMCloseRequest) WordStore.Flush();
+    }
+
+    public override void _ExitTree() => WordStore.Flush();
 
     public override void _Input(InputEvent @event)
     {
@@ -112,6 +129,7 @@ public partial class DiscoveryMode : CanvasLayer
                 {
                     _lastHoverMs = Time.GetTicksMsec();
                     _hovered = Find(mouse);
+                    if (_hovered != null) CountSeen(_hovered);
                 }
                 // Movement still reaches the game, so its tooltips open and close as usual.
                 return;
@@ -158,6 +176,7 @@ public partial class DiscoveryMode : CanvasLayer
 
         if (active)
         {
+            _seenLines.Clear();
             _badgeLabel.Text = Text("SPIRELINGO-DISCOVERY.badge").Replace("{Key}", ToggleKey.ToString());
             _badge.ResetSize();
             _badge.Position = new Vector2((GetViewport().GetVisibleRect().Size.X - _badge.Size.X) / 2, 16);
@@ -166,6 +185,7 @@ public partial class DiscoveryMode : CanvasLayer
         else
         {
             TipKeeper.Flush();
+            WordStore.Flush();
         }
     }
 
@@ -177,6 +197,7 @@ public partial class DiscoveryMode : CanvasLayer
         _selected = word;
         _partner = null;
         _match = null;
+        _record = null;
         if (word == null)
         {
             _popup.Visible = false;
@@ -239,6 +260,8 @@ public partial class DiscoveryMode : CanvasLayer
 
         var first = chosen.FirstOrDefault();
         _popupWord.Text = first == null ? word.Word : Article(first.Gender) + first.Lemma;
+        _record = WordStore.RecordLookup(first?.Lemma ?? lemma ?? word.Word, Context(_match));
+        ShowState();
         var grammar = new List<string>();
         if (first != null && !first.Lemma.Equals(word.Word, StringComparison.OrdinalIgnoreCase)) grammar.Add($"{Escape(word.Word)} → {Escape(first.Lemma)}");
         if ((first?.Pos ?? pos) is { Length: > 0 } partOfSpeech) grammar.Add(Text($"SPIRELINGO-DISCOVERY.pos.{partOfSpeech}", partOfSpeech));
@@ -272,6 +295,56 @@ public partial class DiscoveryMode : CanvasLayer
         _popupInfo.Text = string.Join("\n", info);
         _popupInfo.Visible = info.Count > 0;
         _popupContext.Text = context;
+    }
+
+    private static string? Context(SentenceMatcher.Match? match) => match == null ? null : $"{match.Table}/{match.Key}#{match.Line}";
+
+    /// <summary>
+    /// Counts the words of a line the player is reading as seen, once per line per discovery session. Only
+    /// lines found in the game's text count, since their words are known exactly.
+    /// </summary>
+    private void CountSeen(FoundWord word)
+    {
+        if (!_seenLines.Add(word.Line)) return;
+        try
+        {
+            Glossary.EnsureLoaded();
+            if (SentenceMatcher.Find(word.Line, word.IndexInLine) is not { } match ||
+                Glossary.LineTokens(match.Table, match.Key, match.Line) is not { } tokens) return;
+            var context = Context(match);
+            var lemmas = tokens.Select(t => Glossary.Lookup(t.Surface, t.Lemma).FirstOrDefault()?.Lemma).OfType<string>().Distinct();
+            foreach (var lemma in lemmas) WordStore.RecordSeen(lemma, context);
+        }
+        catch (Exception e)
+        {
+            MainFile.Logger.Warn($"Discovery: could not count seen words: {e.Message}");
+        }
+    }
+
+    /// <summary>
+    /// Lights the chip of the word's chosen state and shows how often it was looked up.
+    /// </summary>
+    private void ShowState()
+    {
+        // Labels are read here rather than when the popup is built, before the game's text is loaded.
+        _learningChip.Text = Text("SPIRELINGO-DISCOVERY.state.learning");
+        _knownChip.Text = Text("SPIRELINGO-DISCOVERY.state.known");
+        _ignoreChip.Text = Text("SPIRELINGO-DISCOVERY.state.ignore");
+        var state = _record?.State;
+        _learningChip.SetPressedNoSignal(state == WordState.Learning);
+        _knownChip.SetPressedNoSignal(state == WordState.Known);
+        _ignoreChip.SetPressedNoSignal(state == WordState.Ignored);
+        _lookupCount.Text = _record == null ? "" : Text("SPIRELINGO-DISCOVERY.looked_up").Replace("{Count}", _record.Lookups.ToString());
+    }
+
+    /// <summary>
+    /// Clicking a chip sets that state; clicking the lit chip takes it back to just "looked up".
+    /// </summary>
+    private void ChooseState(WordState state)
+    {
+        if (_record == null) return;
+        WordStore.Choose(_record, _record.State == state ? WordState.LookedUp : state);
+        ShowState();
     }
 
     /// <summary>
@@ -325,6 +398,17 @@ public partial class DiscoveryMode : CanvasLayer
         _popupWord.AddThemeColorOverride("font_color", HighlightColor);
         box.AddChild(_popupWord);
 
+        var chips = new HBoxContainer();
+        chips.AddThemeConstantOverride("separation", 6);
+        _learningChip = MakeChip(chips, WordState.Learning);
+        _knownChip = MakeChip(chips, WordState.Known);
+        _ignoreChip = MakeChip(chips, WordState.Ignored);
+        _lookupCount = new Label { SizeFlagsHorizontal = Control.SizeFlags.ExpandFill, HorizontalAlignment = HorizontalAlignment.Right };
+        _lookupCount.AddThemeFontSizeOverride("font_size", 16);
+        _lookupCount.AddThemeColorOverride("font_color", new Color(0.6f, 0.6f, 0.6f));
+        chips.AddChild(_lookupCount);
+        box.AddChild(chips);
+
         _popupInfo = MakeText(Colors.White);
         box.AddChild(_popupInfo);
 
@@ -343,6 +427,16 @@ public partial class DiscoveryMode : CanvasLayer
         _popup.CustomMinimumSize = new Vector2(440, 0);
         _popup.Visible = false;
         AddChild(_popup);
+    }
+
+    private Button MakeChip(Container row, WordState state)
+    {
+        var chip = new Button { ToggleMode = true, FocusMode = Control.FocusModeEnum.None };
+        chip.AddThemeFontSizeOverride("font_size", 16);
+        chip.AddThemeColorOverride("font_pressed_color", HighlightColor);
+        chip.Pressed += () => ChooseState(state);
+        row.AddChild(chip);
+        return chip;
     }
 
     private static RichTextLabel MakeText(Color color)
@@ -418,6 +512,8 @@ public partial class DiscoveryMode : CanvasLayer
         if (font == null) return;
         _popupWord.AddThemeFontOverride("font", font);
         _sentenceButton.AddThemeFontOverride("font", font);
+        foreach (var chip in new[] { _learningChip, _knownChip, _ignoreChip }) chip.AddThemeFontOverride("font", font);
+        _lookupCount.AddThemeFontOverride("font", font);
         foreach (var text in new[] { _popupInfo, _popupContext, _popupSentence })
         {
             text.AddThemeFontOverride("normal_font", font);

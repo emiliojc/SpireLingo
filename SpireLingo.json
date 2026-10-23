@@ -3,7 +3,7 @@
   "name": "SpireLingo",
   "author": "Emilio",
   "description": "Language learning helper: shows the text of cards, relics, potions, powers and enemy intents in a second language, and a discovery mode (F8) to click any word for its meaning.",
-  "version": "v0.3.1",
+  "version": "v0.4.0",
   "min_game_version": "0.107.0",
   "has_pck": true,
   "has_dll": true,

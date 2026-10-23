@@ -3,6 +3,17 @@
 All notable changes to SpireLingo. Versions follow [Semantic Versioning](https://semver.org/); the version
 lives in `SpireLingo.json` and is copied into the DLL at build time.
 
+## 0.4.0 - 2026-10-23
+
+### Added
+- Saved words: every word you click in discovery mode is remembered per language pair in
+  `user://SpireLingo/words_deu_eng.json` (on Windows under `%APPDATA%\SlayTheSpire2`), with how often you looked
+  it up, how often you saw it while reading, where in the game you met it, and a history of its states.
+- Word states: seen, looked up, learning, recognised, known and ignored. The popup has Learning, Known and Ignore
+  chips; clicking the lit chip takes the word back to "looked up". Looking up a known or recognised word moves it
+  back to learning.
+- The popup shows how many times you looked the word up.
+
 ## 0.3.1 - 2026-10-23
 
 ### Changed
