@@ -106,10 +106,8 @@ public partial class DiscoveryMode : CanvasLayer
                     _lastHoverMs = Time.GetTicksMsec();
                     _hovered = Find(mouse);
                 }
-                // Movement still reaches the game, so its tooltips open and close as usual, except while a word
-                // is selected: then the game keeps its hover (a lifted card stays lifted) until the popup closes.
-                if (_selected == null) return;
-                break;
+                // Movement still reaches the game, so its tooltips open and close as usual.
+                return;
             case InputEventMouseButton { ButtonIndex: MouseButton.Left, Pressed: true }:
                 _hovered = Find(mouse);
                 Select(_hovered);
@@ -144,6 +142,7 @@ public partial class DiscoveryMode : CanvasLayer
         _badge.Visible = active;
         _hovered = null;
         _selected = null;
+        HoverHold.Release(GetViewport().GetMousePosition());
         _popup.Visible = false;
         _hoverMark.Visible = false;
         _selectedMark.Visible = false;
@@ -163,6 +162,9 @@ public partial class DiscoveryMode : CanvasLayer
 
     private void Select(FoundWord? word)
     {
+        // A card lifted for the previous word may drop back now; one holding the new word stays up.
+        HoverHold.Release(GetViewport().GetMousePosition());
+        HoverHold.SelectedLabel = word?.Label;
         _selected = word;
         if (word == null)
         {
