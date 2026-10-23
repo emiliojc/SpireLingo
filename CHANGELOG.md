@@ -7,8 +7,9 @@ lives in `SpireLingo.json` and is copied into the DLL at build time.
 
 ### Added
 - Word state colours in discovery mode: saved words on screen are underlined by state, so you see at a glance
-  how much of a card you can read. Learning is orange, Recognised faint green, Looked up a thin faint grey;
-  Known, Ignored, Seen and unsaved words stay unmarked. Words are matched to their base form like in the popup,
+  how much of a card you can read. Learning is orange, Known green, Recognised faint teal, Looked up a thin
+  faint grey; Ignored, Seen and unsaved words stay unmarked. Underlines are drawn with their label, so a card or
+  tooltip in front hides them. Words are matched to their base form like in the popup,
   so both halves of a separable verb ("Füge ... zu") are marked. Changing a word's state updates its marks
   right away. A setting turns the colours off.
 

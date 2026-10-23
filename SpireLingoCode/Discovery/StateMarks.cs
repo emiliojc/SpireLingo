@@ -5,20 +5,22 @@ namespace SpireLingo.SpireLingoCode.Discovery;
 
 /// <summary>
 /// In discovery mode, underlines saved words on screen by their state, so the player sees at a glance how much
-/// of a card they can read: orange for Learning, faint green for Recognised, faint grey for Looked up. One node
-/// draws every underline in its label's own space, so marks follow cards as they move.
+/// of a card they can read: orange for Learning, faint teal for Recognised, green for Known, faint grey for
+/// Looked up. Each label gets a small <see cref="WordUnderlines"/> child that draws its marks, so the game draws
+/// them at the label's own depth: whatever covers the label (a lifted card, a tooltip) covers its marks too.
 /// </summary>
-public partial class StateMarks : Node2D
+public partial class StateMarks : Node
 {
     private static readonly Color LearningColor = new(1f, 0.55f, 0.15f);
-    private static readonly Color RecognisedColor = new(0.55f, 0.95f, 0.55f, 0.6f);
+    private static readonly Color RecognisedColor = new(0.45f, 0.85f, 0.85f, 0.7f);
+    private static readonly Color KnownColor = new(0.4f, 0.85f, 0.35f);
     private static readonly Color LookedUpColor = new(0.85f, 0.85f, 0.85f, 0.4f);
     private const ulong ScanIntervalMs = 250;
 
     private static readonly Regex Word = new(@"[^\W\d_]+(?:[-'’][^\W\d_]+)*");
 
-    // Per label: the text and size its marks were worked out for, the word list version, and the marks.
-    private readonly Dictionary<Control, (string text, Vector2 size, int version, List<(Rect2 rect, Color color, float width)> marks)> _labels = [];
+    // Per label: what its marks were worked out for (text, size, word list version) and the child drawing them.
+    private readonly Dictionary<Control, (string text, Vector2 size, int version, WordUnderlines? underlines)> _labels = [];
 
     // Per text line: each word's position and the key it is saved under. Shared by every label showing that line.
     private static readonly Dictionary<string, List<(int index, int length, string key)>> Analysed = [];
@@ -26,26 +28,25 @@ public partial class StateMarks : Node2D
     private Node? _skip;
     private ulong _lastScan;
 
-    public static StateMarks Create(Node skip) => new() { _skip = skip, ZIndex = 1 };
+    public static StateMarks Create(Node skip) => new() { _skip = skip };
 
     public override void _Process(double delta)
     {
         if (!DiscoveryMode.IsActive || !SpireLingoConfig.ShowStateColours)
         {
-            if (_labels.Count > 0)
-            {
-                _labels.Clear();
-                QueueRedraw();
-            }
+            if (_labels.Count > 0) Clear();
             return;
         }
-        if (Time.GetTicksMsec() - _lastScan >= ScanIntervalMs)
-        {
-            _lastScan = Time.GetTicksMsec();
-            Scan();
-        }
-        // Labels move (cards in hand, tooltips), so the marks are drawn again every frame.
-        QueueRedraw();
+        if (Time.GetTicksMsec() - _lastScan < ScanIntervalMs) return;
+        _lastScan = Time.GetTicksMsec();
+        Scan();
+    }
+
+    private void Clear()
+    {
+        foreach (var (_, (_, _, _, underlines)) in _labels)
+            if (underlines != null && GodotObject.IsInstanceValid(underlines)) underlines.QueueFree();
+        _labels.Clear();
     }
 
     /// <summary>
@@ -56,16 +57,26 @@ public partial class StateMarks : Node2D
     {
         Glossary.EnsureLoaded();
         var screen = GetViewport().GetVisibleRect();
-        var seen = new HashSet<Control>();
         foreach (var label in WordFinder.VisibleLabels(screen, _skip))
         {
-            seen.Add(label);
             var text = WordFinder.TextOf(label);
-            if (_labels.TryGetValue(label, out var cached) && cached.text == text && cached.size == label.Size && cached.version == WordStore.StateVersion)
+            // A label without marks has no underline child; one whose child was freed is worked out again.
+            if (_labels.TryGetValue(label, out var cached) && (cached.underlines == null || GodotObject.IsInstanceValid(cached.underlines)) &&
+                cached.text == text && cached.size == label.Size && cached.version == WordStore.StateVersion)
                 continue;
-            _labels[label] = (text, label.Size, WordStore.StateVersion, Marks(label, text));
+
+            var marks = Marks(label, text);
+            var underlines = cached.underlines;
+            if (marks.Count > 0 && (underlines == null || !GodotObject.IsInstanceValid(underlines)))
+            {
+                underlines = new WordUnderlines();
+                label.AddChild(underlines);
+            }
+            if (underlines != null && !GodotObject.IsInstanceValid(underlines)) underlines = null;
+            underlines?.SetMarks(marks);
+            _labels[label] = (text, label.Size, WordStore.StateVersion, underlines);
         }
-        foreach (var gone in _labels.Keys.Where(l => !seen.Contains(l)).ToList()) _labels.Remove(gone);
+        foreach (var gone in _labels.Keys.Where(l => !GodotObject.IsInstanceValid(l)).ToList()) _labels.Remove(gone);
     }
 
     private static List<(Rect2, Color, float)> Marks(Control label, string text)
@@ -84,6 +95,7 @@ public partial class StateMarks : Node2D
                     {
                         WordState.Learning => (LearningColor, 3f),
                         WordState.Recognised => (RecognisedColor, 3f),
+                        WordState.Known => (KnownColor, 3f),
                         WordState.LookedUp => (LookedUpColor, 2f),
                         _ => null
                     };
@@ -134,16 +146,31 @@ public partial class StateMarks : Node2D
         Analysed[line] = result;
         return result;
     }
+}
+
+/// <summary>
+/// Draws one label's state underlines, as a child of that label in the game's own tree.
+/// </summary>
+public partial class WordUnderlines : Control
+{
+    private List<(Rect2 rect, Color color, float width)> _marks = [];
+
+    public override void _Ready()
+    {
+        Name = "SpireLingoUnderlines";
+        MouseFilter = MouseFilterEnum.Ignore;
+        SetAnchorsPreset(LayoutPreset.FullRect);
+    }
+
+    public void SetMarks(List<(Rect2, Color, float)> marks)
+    {
+        _marks = marks;
+        QueueRedraw();
+    }
 
     public override void _Draw()
     {
-        foreach (var (label, (_, _, _, marks)) in _labels)
-        {
-            if (marks.Count == 0 || !GodotObject.IsInstanceValid(label) || !label.IsVisibleInTree()) continue;
-            DrawSetTransformMatrix(label.GetGlobalTransformWithCanvas());
-            foreach (var (rect, color, width) in marks)
-                DrawRect(new Rect2(rect.Position.X, rect.End.Y - width, rect.Size.X, width), color);
-        }
-        DrawSetTransformMatrix(Transform2D.Identity);
+        foreach (var (rect, color, width) in _marks)
+            DrawRect(new Rect2(rect.Position.X, rect.End.Y - width, rect.Size.X, width), color);
     }
 }
