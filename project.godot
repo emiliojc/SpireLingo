@@ -11,22 +11,9 @@ config_version=5
 [application]
 
 config/name="SpireLingo"
-config/features=PackedStringArray("4.5", "C#", "Mobile")
+config/features=PackedStringArray("4.5", "C#")
 config/icon="res://SpireLingo/mod_image.png"
-
-[display]
-
-window/size/viewport_width=1920
-window/size/viewport_height=1080
-window/size/initial_position_type=3
-window/stretch/mode="canvas_items"
-window/stretch/aspect="expand"
 
 [dotnet]
 
 project/assembly_name="SpireLingo"
-
-[rendering]
-
-renderer/rendering_method="mobile"
-environment/defaults/default_clear_color=Color(0.0923724, 0.122398, 0.116929, 1)
