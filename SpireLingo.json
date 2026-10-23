@@ -1,0 +1,14 @@
+{
+  "id": "SpireLingo",
+  "name": "SpireLingo",
+  "author": "Emilio",
+  "description": "Language learning helper: shows the text of cards, relics, potions and powers in a second language next to the game's own.",
+  "version": "v0.1.0",
+  "min_game_version": "0.107.0",
+  "has_pck": true,
+  "has_dll": true,
+  "dependencies": [
+    {"id": "BaseLib", "min_version": "3.3.0"}
+  ],
+  "affects_gameplay": false
+}
