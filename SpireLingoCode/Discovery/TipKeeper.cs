@@ -25,6 +25,25 @@ internal static class TipKeeper
     private static IDictionary? Sets => ActiveSets?.GetValue(null) as IDictionary;
 
     /// <summary>
+    /// Hides the tips titled <paramref name="title"/> in tooltips that are already open. The game shows each tip
+    /// as a node with a %Title label.
+    /// </summary>
+    internal static void HideTips(string title)
+    {
+        if (Sets is not { } sets || TextContainer == null) return;
+        foreach (var set in sets.Values)
+        {
+            if (set is not Node node || !GodotObject.IsInstanceValid(node) || TextContainer.GetValue(set) is not Node container) continue;
+            foreach (var tip in container.GetChildren())
+            {
+                if (tip is CanvasItem item && tip.GetNodeOrNull<Label>("%Title") is { } label &&
+                    string.Equals(label.Text, title, StringComparison.OrdinalIgnoreCase))
+                    item.Visible = false;
+            }
+        }
+    }
+
+    /// <summary>
     /// Called by the patches: true when the game's removal should run now.
     /// </summary>
     internal static bool AllowRemove(Control owner)

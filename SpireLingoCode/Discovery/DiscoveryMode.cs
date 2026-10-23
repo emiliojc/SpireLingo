@@ -47,6 +47,7 @@ public partial class DiscoveryMode : CanvasLayer
     {
         Layer = 128;
         ProcessMode = ProcessModeEnum.Always;
+        WordFinder.Track(GetTree());
 
         _dim = new ColorRect { MouseFilter = Control.MouseFilterEnum.Ignore, Visible = false };
         _dim.SetAnchorsPreset(Control.LayoutPreset.FullRect);
@@ -129,7 +130,7 @@ public partial class DiscoveryMode : CanvasLayer
     {
         try
         {
-            return WordFinder.At(GetTree().Root, mouse, this);
+            return WordFinder.At(mouse, this);
         }
         catch (Exception e)
         {
@@ -148,17 +149,19 @@ public partial class DiscoveryMode : CanvasLayer
         _badge.Visible = active;
         _hovered = null;
         _selected = null;
+        _partner = null;
         HoverHold.Release(GetViewport().GetMousePosition());
         _popup.Visible = false;
         _hoverMark.Visible = false;
         _selectedMark.Visible = false;
+        _partnerMark.Visible = false;
 
         if (active)
         {
             _badgeLabel.Text = Text("SPIRELINGO-DISCOVERY.badge").Replace("{Key}", ToggleKey.ToString());
             _badge.ResetSize();
             _badge.Position = new Vector2((GetViewport().GetVisibleRect().Size.X - _badge.Size.X) / 2, 16);
-            TranslationTips.HideOpenTips();
+            TipKeeper.HideTips(TranslationTips.TipTitleText);
         }
         else
         {
@@ -382,8 +385,9 @@ public partial class DiscoveryMode : CanvasLayer
     private Node2D MakeMark(float fillAlpha)
     {
         var mark = new Node2D { Visible = false };
-        mark.AddChild(new ColorRect { Name = "Fill", Color = HighlightColor with { A = fillAlpha }, MouseFilter = Control.MouseFilterEnum.Ignore });
-        mark.AddChild(new ColorRect { Name = "Line", Color = HighlightColor, MouseFilter = Control.MouseFilterEnum.Ignore });
+        // Child 0 is the fill, child 1 the underline (see Place).
+        mark.AddChild(new ColorRect { Color = HighlightColor with { A = fillAlpha }, MouseFilter = Control.MouseFilterEnum.Ignore });
+        mark.AddChild(new ColorRect { Color = HighlightColor, MouseFilter = Control.MouseFilterEnum.Ignore });
         AddChild(mark);
         return mark;
     }
@@ -397,10 +401,10 @@ public partial class DiscoveryMode : CanvasLayer
         }
         mark.Visible = true;
         mark.Transform = word.ScreenTransform;
-        var fill = mark.GetNode<ColorRect>("Fill");
+        var fill = mark.GetChild<ColorRect>(0);
         fill.Position = word.LocalRect.Position;
         fill.Size = word.LocalRect.Size;
-        var line = mark.GetNode<ColorRect>("Line");
+        var line = mark.GetChild<ColorRect>(1);
         line.Position = new Vector2(word.LocalRect.Position.X, word.LocalRect.End.Y - 2);
         line.Size = new Vector2(word.LocalRect.Size.X, 2);
     }

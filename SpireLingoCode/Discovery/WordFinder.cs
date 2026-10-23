@@ -17,46 +17,85 @@ internal sealed record FoundWord(Control Label, string Word, Rect2 LocalRect, st
 /// </summary>
 internal static class WordFinder
 {
-    public static FoundWord? At(Node root, Vector2 screenPoint, Node? skip)
+    // Every Label and RichTextLabel in the scene tree, kept up to date from the tree's signals, so finding the
+    // one under the mouse doesn't walk the whole tree on every mouse move.
+    private static readonly HashSet<Control> Labels = [];
+
+    public static void Track(SceneTree tree)
+    {
+        Collect(tree.Root);
+        tree.NodeAdded += node =>
+        {
+            if (node is Label or RichTextLabel) Labels.Add((Control)node);
+        };
+        tree.NodeRemoved += node =>
+        {
+            if (node is Label or RichTextLabel) Labels.Remove((Control)node);
+        };
+    }
+
+    private static void Collect(Node node)
+    {
+        if (node is Label or RichTextLabel) Labels.Add((Control)node);
+        for (var i = 0; i < node.GetChildCount(); i++) Collect(node.GetChild(i));
+    }
+
+    public static FoundWord? At(Vector2 screenPoint, Node? skip)
     {
         Control? top = null;
         Vector2 topLocal = default;
-        var topLayer = int.MinValue;
-        Visit(root, 0);
+        (int layer, List<int> path)? topOrder = null;
+        foreach (var label in Labels)
+        {
+            if (!GodotObject.IsInstanceValid(label) || !label.IsVisibleInTree()) continue;
+            var local = label.GetGlobalTransformWithCanvas().AffineInverse() * screenPoint;
+            if (!new Rect2(Vector2.Zero, label.Size).HasPoint(local)) continue;
+            if (DrawOrder(label, skip) is not { } order) continue;
+            if (topOrder != null && Compare(order, topOrder.Value) <= 0) continue;
+            top = label;
+            topLocal = local;
+            topOrder = order;
+        }
 
-        if (top == null) return null;
         return top switch
         {
             RichTextLabel rich => InRichText(rich, topLocal),
             Label label => InLabel(label, topLocal),
             _ => null
         };
+    }
 
-        // Later in the tree draws on top within a canvas layer; a higher layer draws on top of a lower one.
-        void Visit(Node node, int layer)
+    /// <summary>
+    /// A higher canvas layer draws on top of a lower one, and within a layer a node later in the tree draws on
+    /// top. Null when the label is inside <paramref name="skip"/> or a hidden canvas layer.
+    /// </summary>
+    private static (int layer, List<int> path)? DrawOrder(Node label, Node? skip)
+    {
+        var layer = 0;
+        var foundLayer = false;
+        var path = new List<int>();
+        for (Node? node = label; node != null; node = node.GetParent())
         {
-            if (node == skip) return;
-            if (node is CanvasLayer canvasLayer)
+            if (node == skip) return null;
+            if (node is CanvasLayer canvasLayer && !foundLayer)
             {
-                if (!canvasLayer.Visible) return;
+                if (!canvasLayer.Visible) return null;
                 layer = canvasLayer.Layer;
+                foundLayer = true;
             }
-            if (node is CanvasItem item && !item.Visible) return;
-
-            if (node is Label or RichTextLabel)
-            {
-                var control = (Control)node;
-                var local = control.GetGlobalTransformWithCanvas().AffineInverse() * screenPoint;
-                if (new Rect2(Vector2.Zero, control.Size).HasPoint(local) && control.IsVisibleInTree() && layer >= topLayer)
-                {
-                    top = control;
-                    topLocal = local;
-                    topLayer = layer;
-                }
-            }
-
-            foreach (var child in node.GetChildren()) Visit(child, layer);
+            path.Add(node.GetIndex());
         }
+        path.Reverse();
+        return (layer, path);
+    }
+
+    private static int Compare((int layer, List<int> path) a, (int layer, List<int> path) b)
+    {
+        if (a.layer != b.layer) return a.layer.CompareTo(b.layer);
+        for (var i = 0; i < Math.Min(a.path.Count, b.path.Count); i++)
+            if (a.path[i] != b.path[i]) return a.path[i].CompareTo(b.path[i]);
+        // A child draws over its parent.
+        return a.path.Count.CompareTo(b.path.Count);
     }
 
     /// <summary>
@@ -85,9 +124,11 @@ internal static class WordFinder
         }
         if (label is not RichTextLabel rich || RichFont(rich) is not (Font font, int size)) return null;
 
+        var text = rich.GetParsedText();
+        var layout = RichLayout.Of(rich);
         for (var line = 0; line < rich.GetLineCount(); line++)
         {
-            var geometry = RichLine(rich, line, font, size);
+            var geometry = RichLine(rich, line, text, layout);
             if (start < geometry.From || start >= geometry.To) continue;
             var from = start - geometry.From;
             var to = Math.Min(from + length, geometry.Text.Length);
@@ -120,9 +161,10 @@ internal static class WordFinder
         var text = label.GetParsedText();
         if (text.Length == 0 || RichFont(label) is not (Font font, int size)) return null;
 
+        var layout = RichLayout.Of(label);
         for (var line = 0; line < label.GetLineCount(); line++)
         {
-            var geometry = RichLine(label, line, font, size);
+            var geometry = RichLine(label, line, text, layout);
             if (local.Y < geometry.Top || local.Y >= geometry.Top + geometry.Height) continue;
 
             // Walk the line's characters by measured width until the mouse x is passed.
@@ -153,19 +195,29 @@ internal static class WordFinder
         return font == null ? null : (font, label.GetThemeFontSize("normal_font_size"));
     }
 
-    private static LineGeometry RichLine(RichTextLabel label, int line, Font font, int size)
+    /// <summary>
+    /// What is the same for every line of a label: where its content starts and how its lines are aligned.
+    /// </summary>
+    private readonly record struct RichLayout(Rect2I Content, bool Centered, bool Right, float Width)
     {
-        var text = label.GetParsedText();
-        var content = label.GetVisibleContentRect();
-        var centered = label.HorizontalAlignment == HorizontalAlignment.Center || label.Text.Contains("[center]");
-        var right = label.HorizontalAlignment == HorizontalAlignment.Right || label.Text.Contains("[right]");
+        public static RichLayout Of(RichTextLabel label)
+        {
+            var bbcode = label.Text;
+            return new(label.GetVisibleContentRect(),
+                label.HorizontalAlignment == HorizontalAlignment.Center || bbcode.Contains("[center]"),
+                label.HorizontalAlignment == HorizontalAlignment.Right || bbcode.Contains("[right]"),
+                label.Size.X);
+        }
+    }
 
+    private static LineGeometry RichLine(RichTextLabel label, int line, string text, RichLayout layout)
+    {
         var range = label.GetLineRange(line);
         var from = Math.Clamp(range.X, 0, text.Length);
         var to = Math.Clamp(range.Y, from, text.Length);
         var width = label.GetLineWidth(line);
-        var left = centered ? (label.Size.X - width) / 2 : right ? label.Size.X - width : content.Position.X;
-        return new(from, to, text[from..to], content.Position.Y + label.GetLineOffset(line), label.GetLineHeight(line), left);
+        var left = layout.Centered ? (layout.Width - width) / 2 : layout.Right ? layout.Width - width : layout.Content.Position.X;
+        return new(from, to, text[from..to], layout.Content.Position.Y + label.GetLineOffset(line), label.GetLineHeight(line), left);
     }
 
     private static FoundWord Found(Control label, string text, int start, int end, Rect2 rect)
