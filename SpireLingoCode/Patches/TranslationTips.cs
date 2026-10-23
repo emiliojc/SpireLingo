@@ -1,6 +1,5 @@
 using System.Reflection;
 using System.Runtime.CompilerServices;
-using Godot;
 using HarmonyLib;
 using MegaCrit.Sts2.Core.Entities.Cards;
 using MegaCrit.Sts2.Core.Entities.Creatures;
@@ -9,7 +8,6 @@ using MegaCrit.Sts2.Core.Localization;
 using MegaCrit.Sts2.Core.Models;
 using MegaCrit.Sts2.Core.MonsterMoves.Intents;
 using MegaCrit.Sts2.Core.Nodes.Combat;
-using MegaCrit.Sts2.Core.Nodes.HoverTips;
 using SpireLingo.SpireLingoCode.Discovery;
 
 namespace SpireLingo.SpireLingoCode.Patches;
@@ -24,51 +22,23 @@ static class TranslationTips
 {
     private const string TipIdPrefix = "SPIRELINGO-TRANSLATION";
 
-    private static readonly PropertyInfo? TitleProperty = AccessTools.Property(typeof(HoverTip), "Title");
-
     private static LocString TipTitle() => new("gameplay_ui", "SPIRELINGO-TRANSLATION.title");
+
+    /// <summary>
+    /// The title our tips show, in the game's language.
+    /// </summary>
+    internal static string TipTitleText => TipTitle().GetFormattedText();
 
     /// <summary>
     /// No translation tips while discovery mode is on, so the screen stays uncluttered.
     /// </summary>
     private static bool Skip => TargetText.IsActive || !TargetText.IsUseful || DiscoveryMode.IsActive;
 
-    private static readonly FieldInfo? ActiveTipSets = AccessTools.Field(typeof(NHoverTipSet), "_activeHoverTips");
-    private static readonly FieldInfo? TextTipContainer = AccessTools.Field(typeof(NHoverTipSet), "_textHoverTipContainer");
-
-    /// <summary>
-    /// Hides the translation tips in tooltips that are already open. The game shows each tip as a node with
-    /// a %Title label, so ours are the ones titled like <see cref="TipTitle"/>.
-    /// </summary>
-    internal static void HideOpenTips()
-    {
-        if (ActiveTipSets?.GetValue(null) is not System.Collections.IDictionary sets || TextTipContainer == null) return;
-        var title = TipTitle().GetFormattedText();
-        foreach (var set in sets.Values)
-        {
-            if (set is not Node node || !GodotObject.IsInstanceValid(node) || TextTipContainer.GetValue(set) is not Node container) continue;
-            foreach (var tip in container.GetChildren())
-            {
-                if (tip is CanvasItem item && tip.GetNodeOrNull<Label>("%Title") is { } label &&
-                    string.Equals(label.Text, title, StringComparison.OrdinalIgnoreCase))
-                    item.Visible = false;
-            }
-        }
-    }
-
     private static IHoverTip MakeTip(string title, string description, string id)
     {
         var body = string.IsNullOrEmpty(description) ? $"[gold]{title}[/gold]" : $"[gold]{title}[/gold]\n{description}";
         return new HoverTip(TipTitle(), body) { Id = $"{TipIdPrefix}-{id}" };
     }
-
-    private static string TextOf(object? value) => value switch
-    {
-        null => "",
-        string s => s,
-        LocString loc => loc.GetFormattedText(),
-        _ => value.ToString() ?? ""
-    };
 
     /// <summary>
     /// Re-reads a model's own first tip in the target language and appends it as a new tip.
@@ -80,12 +50,9 @@ static class TranslationTips
 
         try
         {
-            // Formatting happens inside the flag, including any title that is still a LocString.
+            // A HoverTip formats its title and description when it is made, so it is made inside the flag.
             var translated = TargetText.Format<(string title, string description)?>(() =>
-            {
-                if (regenerate().FirstOrDefault() is not HoverTip own) return null;
-                return (TextOf(TitleProperty?.GetValue(own)), own.Description ?? "");
-            });
+                regenerate().FirstOrDefault() is HoverTip own ? (own.Title ?? "", own.Description ?? "") : null);
             if (translated == null) return tips;
 
             return tips.Append(MakeTip(translated.Value.title, translated.Value.description, model.Id.ToString()));
@@ -200,6 +167,9 @@ static class TranslationTips
     /// </summary>
     [ThreadStatic] private static List<(HoverTip original, IHoverTip translation)>? _pendingIntentTips;
 
+    // Tips are shown right after they are built; more than this waiting means they were built for something else.
+    private const int MaxPendingIntentTips = 16;
+
     [HarmonyPatch(typeof(AbstractIntent), nameof(AbstractIntent.GetHoverTip))]
     private static class IntentTipBuilt
     {
@@ -213,7 +183,9 @@ static class TranslationTips
             {
                 // The damage and hit count come from the same calculation the intent label uses.
                 var tip = TargetText.Format(() => intent.GetHoverTip(targets, owner));
-                (_pendingIntentTips ??= []).Add((__result,
+                var pending = _pendingIntentTips ??= [];
+                if (pending.Count >= MaxPendingIntentTips) pending.RemoveAt(0);
+                pending.Add((__result,
                     MakeTip(tip.Title ?? "", tip.Description ?? "", $"INTENT-{intent.IntentType}")));
             }
             catch (Exception e)

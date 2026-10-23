@@ -1,3 +1,4 @@
+using System.Reflection;
 using System.Text.Json;
 using HarmonyLib;
 using MegaCrit.Sts2.Core.Localization;
@@ -85,7 +86,11 @@ public static class TargetText
         if (!FileAccess.FileExists(path)) return null;
         try
         {
-            return JsonSerializer.Deserialize<Dictionary<string, string>>(FileAccess.GetFileAsString(path));
+            // JsonDocument rather than JsonSerializer: the game may switch off reflection-based serialization.
+            using var doc = JsonDocument.Parse(FileAccess.GetFileAsString(path));
+            return doc.RootElement.EnumerateObject()
+                .Where(p => p.Value.ValueKind == JsonValueKind.String)
+                .ToDictionary(p => p.Name, p => p.Value.GetString()!);
         }
         catch (Exception e)
         {
@@ -104,6 +109,9 @@ public static class TargetText
 static class CaptureTargetTablesPatch
 {
     [ThreadStatic] private static bool _loadingTarget;
+
+    // Static in the game (a Dictionary<string, string> from a file path).
+    private static readonly MethodInfo? LoadTable = AccessTools.Method(typeof(LocManager), "LoadTable");
 
     [HarmonyPostfix]
     [HarmonyPriority(Priority.Last)] // after BaseLib's SimpleLoc has processed the text
@@ -142,10 +150,10 @@ static class CaptureTargetTablesPatch
     {
         try
         {
-            var method = AccessTools.Method(typeof(LocManager), "LoadTable");
-            var instance = method.IsStatic ? null : LocManager.Instance;
-            if (!method.IsStatic && instance == null) return null;
-            return method.Invoke(instance, [path]) as Dictionary<string, string>;
+            if (LoadTable == null) return null;
+            var instance = LoadTable.IsStatic ? null : LocManager.Instance;
+            if (!LoadTable.IsStatic && instance == null) return null;
+            return LoadTable.Invoke(instance, [path]) as Dictionary<string, string>;
         }
         catch (Exception e)
         {

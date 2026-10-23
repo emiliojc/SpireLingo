@@ -20,9 +20,31 @@ internal static class TipKeeper
 
     // Owner -> when the mouse was last on its tooltip (or when the game asked to remove it).
     private static readonly Dictionary<Control, ulong> Pending = [];
+    // Owners whose tooltip opened while the mouse was on another tooltip (say one lying over another enemy);
+    // it stays hidden until the mouse is off that other tooltip.
+    private static readonly HashSet<Control> Hidden = [];
     private static bool _bypass;
 
     private static IDictionary? Sets => ActiveSets?.GetValue(null) as IDictionary;
+
+    /// <summary>
+    /// Hides the tips titled <paramref name="title"/> in tooltips that are already open. The game shows each tip
+    /// as a node with a %Title label.
+    /// </summary>
+    internal static void HideTips(string title)
+    {
+        if (Sets is not { } sets || TextContainer == null) return;
+        foreach (var set in sets.Values)
+        {
+            if (set is not Node node || !GodotObject.IsInstanceValid(node) || TextContainer.GetValue(set) is not Node container) continue;
+            foreach (var tip in container.GetChildren())
+            {
+                if (tip is CanvasItem item && tip.GetNodeOrNull<Label>("%Title") is { } label &&
+                    string.Equals(label.Text, title, StringComparison.OrdinalIgnoreCase))
+                    item.Visible = false;
+            }
+        }
+    }
 
     /// <summary>
     /// Called by the patches: true when the game's removal should run now.
@@ -52,13 +74,30 @@ internal static class TipKeeper
     }
 
     /// <summary>
+    /// Hides a tooltip that opened under the mouse while the mouse is reading another tooltip.
+    /// </summary>
+    internal static void AfterShow(Control owner, NHoverTipSet? shown)
+    {
+        if (!DiscoveryMode.IsActive || shown == null || !GodotObject.IsInstanceValid(shown) || Sets is not { } sets) return;
+        var mouse = owner.GetViewport().GetMousePosition();
+        foreach (DictionaryEntry entry in sets)
+        {
+            if (entry.Key == owner || entry.Value == shown || !IsOver(entry.Value, mouse)) continue;
+            shown.Visible = false;
+            Hidden.Add(owner);
+            return;
+        }
+    }
+
+    /// <summary>
     /// Runs every frame in discovery mode: closes delayed tooltips the mouse is not on, except the one holding
     /// <paramref name="selected"/>, the label whose word the popup is showing.
     /// </summary>
     internal static void Update(Vector2 mouse, Node? selected)
     {
-        if (Pending.Count == 0) return;
+        if (Pending.Count == 0 && Hidden.Count == 0) return;
         var sets = Sets;
+        RevealHidden(sets, mouse);
         var now = Time.GetTicksMsec();
         foreach (var owner in Pending.Keys.ToList())
         {
@@ -78,13 +117,34 @@ internal static class TipKeeper
     }
 
     /// <summary>
-    /// Leaving discovery mode closes everything that was only waiting.
+    /// Shows hidden tooltips again once the mouse is off every other tooltip (or, with <paramref name="all"/>,
+    /// right away).
+    /// </summary>
+    private static void RevealHidden(IDictionary? sets, Vector2 mouse, bool all = false)
+    {
+        foreach (var owner in Hidden.ToList())
+        {
+            if (!GodotObject.IsInstanceValid(owner) || sets == null || !sets.Contains(owner) || sets[owner] is not Control set ||
+                !GodotObject.IsInstanceValid(set))
+            {
+                Hidden.Remove(owner);
+                continue;
+            }
+            if (!all && sets.Keys.Cast<object>().Any(other => other != owner && IsOver(sets[other], mouse))) continue;
+            set.Visible = true;
+            Hidden.Remove(owner);
+        }
+    }
+
+    /// <summary>
+    /// Leaving discovery mode closes everything that was only waiting, and shows what was hidden.
     /// </summary>
     internal static void Flush()
     {
         foreach (var owner in Pending.Keys.ToList())
             if (GodotObject.IsInstanceValid(owner)) RemoveNow(owner);
         Pending.Clear();
+        RevealHidden(Sets, Vector2.Zero, all: true);
     }
 
     private static bool IsOver(object? set, Vector2 mouse)
@@ -134,4 +194,7 @@ static class TipKeeperShowPatch
 
     [HarmonyPrefix]
     static void Prefix(Control owner) => TipKeeper.BeforeShow(owner);
+
+    [HarmonyPostfix]
+    static void Postfix(Control owner, NHoverTipSet? __result) => TipKeeper.AfterShow(owner, __result);
 }
