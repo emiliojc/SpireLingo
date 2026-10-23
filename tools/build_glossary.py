@@ -35,6 +35,17 @@ SPACY_POS = {"NOUN": "noun", "PROPN": "name", "VERB": "verb", "AUX": "verb", "AD
              "ADP": "prep", "PRON": "pron", "DET": "det", "CCONJ": "conj", "SCONJ": "conj", "PART": "particle",
              "NUM": "num", "INTJ": "intj"}
 LINKING = ["", "s", "n", "en", "e", "es", "er"]
+# Particles that split off a verb and go to the end of the clause ("Füge ... zu" = "zufügen").
+PARTICLES = {"ab", "an", "auf", "aus", "bei", "dar", "ein", "fest", "fort", "frei", "her", "herab", "heran", "heraus",
+             "herbei", "herein", "hin", "hinaus", "hinein", "hinzu", "hoch", "los", "mit", "nach", "nieder", "vor",
+             "voran", "voraus", "vorbei", "weg", "weiter", "wieder", "zu", "zurück", "zusammen"}
+SENTENCE_START = re.compile(r"(^|[.!?:]\s+)([A-ZÄÖÜ])")
+
+
+def lower_sentence_starts(text):
+    """The game's text is mostly commands ("Füge 6 Schaden zu."); spaCy reads a capitalised first word as a
+    noun, so sentence starts are lowercased for parsing. Lengths stay the same."""
+    return SENTENCE_START.sub(lambda m: m.group(1) + m.group(2).lower(), text)
 
 
 # ---------------------------------------------------------------- game text
@@ -135,53 +146,71 @@ def render(raw):
 
 # ---------------------------------------------------------------- Wiktionary
 
-def load_kaikki(path, wanted):
-    """Reads the kaikki.org German extract, keeping entries for words the game uses (any case)."""
-    wanted_lower = {w.lower() for w in wanted}
-    entries = defaultdict(list)   # lemma -> [entry]
-    form_of = defaultdict(set)    # form (lower) -> lemmas
+def kaikki_items(path):
     opener = gzip.open if str(path).endswith(".gz") else open
     with opener(path, "rt", encoding="utf-8") as f:
         for line in f:
             item = json.loads(line)
-            word = item.get("word", "")
-            if item.get("lang_code") != "de" or not word:
-                continue
+            if item.get("lang_code") == "de" and item.get("word"):
+                yield item
+
+
+def kaikki_lemma_words(path):
+    """Every German word Wiktionary has a real entry for (not just "form of ..."), for splitting compounds."""
+    words = set()
+    for item in kaikki_items(path):
+        if any(not (s.get("form_of") or s.get("alt_of")) and s.get("glosses") for s in item.get("senses", [])):
+            words.add(item["word"])
+    return words
+
+
+def load_kaikki(path, wanted, match_forms=True):
+    """Reads the kaikki.org German extract, keeping entries for the wanted words (any case), and with
+    match_forms also entries that list a wanted word among their inflected forms."""
+    wanted_lower = {w.lower() for w in wanted}
+    entries = defaultdict(list)   # lemma -> [entry]
+    form_of = defaultdict(set)    # form (lower) -> lemmas
+    for item in kaikki_items(path):
+        word = item["word"]
+        relevant = word.lower() in wanted_lower
+        if match_forms and not relevant:
             forms = [x.get("form", "") for x in item.get("forms", []) if x.get("form")]
-            relevant = word.lower() in wanted_lower or any(x.lower() in wanted_lower for x in forms)
-            if not relevant:
+            relevant = any(x.lower() in wanted_lower for x in forms)
+            # Separable verbs never appear whole in commands, so keep them all; unused ones are dropped later.
+            relevant = relevant or (item.get("pos") == "verb" and any(word.startswith(p) for p in PARTICLES))
+        if not relevant:
+            continue
+        senses, lemma_targets = [], set()
+        for sense in item.get("senses", []):
+            targets = sense.get("form_of") or sense.get("alt_of")
+            if targets:
+                lemma_targets.update(t["word"] for t in targets if t.get("word"))
                 continue
-            senses, lemma_targets = [], set()
-            for sense in item.get("senses", []):
-                targets = sense.get("form_of") or sense.get("alt_of")
-                if targets:
-                    lemma_targets.update(t["word"] for t in targets if t.get("word"))
-                    continue
-                gloss = (sense.get("glosses") or [""])[0].strip()
-                if gloss and gloss not in senses:
-                    senses.append(gloss)
-            for target in lemma_targets:
-                form_of[word.lower()].add(target)
-            if not senses:
-                continue
-            pos = POS.get(item.get("pos", ""), item.get("pos", ""))
-            entry = {"pos": pos, "senses": senses[:MAX_SENSES]}
-            if pos == "noun":
-                gender = gender_of(item)
-                if gender:
-                    entry["gender"] = gender
-                plural = next((x["form"] for x in item.get("forms", []) if "plural" in x.get("tags", [])
-                               and "nominative" in x.get("tags", []) and x.get("form") != "-"), None)
-                if plural:
-                    entry["plural"] = plural
-            for x in item.get("forms", []):
-                form = x.get("form", "")
-                if form and form != word and WORD.fullmatch(form):
-                    form_of[form.lower()].add(word)
-            example = first_example(item)
-            if example:
-                entry["example"] = example
-            entries[word].append(entry)
+            gloss = (sense.get("glosses") or [""])[0].strip()
+            if gloss and gloss not in senses:
+                senses.append(gloss)
+        for target in lemma_targets:
+            form_of[word.lower()].add(target)
+        if not senses:
+            continue
+        pos = POS.get(item.get("pos", ""), item.get("pos", ""))
+        entry = {"pos": pos, "senses": senses[:MAX_SENSES]}
+        if pos == "noun":
+            gender = gender_of(item)
+            if gender:
+                entry["gender"] = gender
+            plural = next((x["form"] for x in item.get("forms", []) if "plural" in x.get("tags", [])
+                           and "nominative" in x.get("tags", []) and x.get("form") != "-"), None)
+            if plural:
+                entry["plural"] = plural
+        for x in item.get("forms", []):
+            form = x.get("form", "")
+            if form and form != word and WORD.fullmatch(form):
+                form_of[form.lower()].add(word)
+        example = first_example(item)
+        if example:
+            entry["example"] = example
+        entries[word].append(entry)
     return entries, form_of
 
 
@@ -224,16 +253,37 @@ def build(pck, kaikki_path, model_name):
                     samples[f"{table}/{key}#{n}"] = text
 
     nlp = spacy.load(model_name, disable=["ner"])
-    docs = list(nlp.pipe(samples.values(), batch_size=256))
+    docs = list(nlp.pipe((lower_sentence_starts(t) for t in samples.values()), batch_size=256))
     print(f"parsed {len(docs)} lines")
 
     surface_counts = Counter()
-    for doc in docs:
-        surface_counts.update(t.text for t in doc if WORD.fullmatch(t.text))
+    for text, doc in zip(samples.values(), docs):
+        surface_counts.update(text[t.idx:t.idx + len(t)] for t in doc if WORD.fullmatch(t.text))
     wanted = set(surface_counts) | {t.lemma_ for doc in docs for t in doc if WORD.fullmatch(t.lemma_)}
 
-    entries, form_of = load_kaikki(kaikki_path, wanted)
-    print(f"kept {len(entries)} Wiktionary lemmas")
+    # Compounds the game made up ("Nachziehstapel") are split into words Wiktionary has, which are then
+    # loaded too.
+    lemma_words = kaikki_lemma_words(kaikki_path)
+    lemma_lower = {w.lower() for w in lemma_words}
+    in_wiktionary = lambda w: w in lemma_words or w.lower() in lemma_lower
+    candidate_compounds = {}
+    for word in surface_counts:
+        if len(word) >= 7 and not in_wiktionary(word):
+            parts = split_compound(word, in_wiktionary)
+            if parts:
+                candidate_compounds[word.lower()] = parts
+    part_words = {p for parts in candidate_compounds.values() for p in parts}
+
+    entries, form_of = load_kaikki(kaikki_path, wanted | part_words)
+    # Words that are only "form of X" need X's own entry as well.
+    targets = {t for lemmas in form_of.values() for t in lemmas} - set(entries)
+    if targets:
+        more, more_forms = load_kaikki(kaikki_path, targets, match_forms=False)
+        for lemma, items in more.items():
+            entries[lemma].extend(items)
+        for form, lemmas in more_forms.items():
+            form_of[form] |= lemmas
+    print(f"kept {len(entries)} Wiktionary lemmas, {len(candidate_compounds)} compounds to split")
     lower_entries = defaultdict(list)
     for lemma in entries:
         lower_entries[lemma.lower()].append(lemma)
@@ -259,33 +309,73 @@ def build(pck, kaikki_path, model_name):
                 return lower_entries[candidate.lower()][0]
         return token.lemma_
 
+    def verb_lemmas(token):
+        """Infinitives a word can be a form of ("füge" -> "fügen")."""
+        found = []
+        for candidate in [token.lemma_.lower(), token.text.lower()] + sorted(form_of.get(token.text.lower(), [])):
+            if candidate in entries and any(e["pos"] == "verb" for e in entries[candidate]) and candidate not in found:
+                found.append(candidate)
+        return found
+
+    def is_verb(lemma):
+        return lemma in entries and any(e["pos"] == "verb" for e in entries[lemma])
+
     sentences, verbs_used, compounds = {}, set(), {}
+    stats = Counter()
     for (key, _), doc in zip(samples.items(), docs):
         tokens, index_of = [], {}
         for t in doc:
             if WORD.fullmatch(t.text):
                 index_of[t.i] = len(tokens)
                 tokens.append([t.text.lower(), lemma_for(t), SPACY_POS.get(t.pos_, t.pos_.lower())])
-        # Separable verbs: the particle (dependency "svp") belongs to its head verb.
+
+        def link(verb_token, particle_token, verb):
+            v, p = index_of[verb_token.i], index_of[particle_token.i]
+            if len(tokens[v]) > 3 or len(tokens[p]) > 3:
+                return
+            tokens[v][1] = tokens[p][1] = verb
+            tokens[v][2] = "verb"
+            tokens[p][2] = "particle"
+            tokens[v].append(p)
+            tokens[p].append(v)
+            verbs_used.add(verb)
+
+        # Separable verbs: spaCy marks the particle with the dependency "svp" ...
         for t in doc:
             if t.dep_ == "svp" and t.i in index_of and t.head.i in index_of:
-                verb = t.text.lower() + lemma_for(t.head).lower()
-                v, p = index_of[t.head.i], index_of[t.i]
-                tokens[v][1] = tokens[p][1] = verb
-                tokens[v][2] = "verb"
-                tokens[p][2] = "particle"
-                tokens[v].append(p)
-                tokens[p].append(v)
-                verbs_used.add(verb)
+                for verb in verb_lemmas(t.head):
+                    if is_verb(t.text.lower() + verb):
+                        link(t.head, t, t.text.lower() + verb)
+                        stats["svp"] += 1
+                        break
+        # ... and when it doesn't, a particle ending a clause joins the clause's first or second word, if
+        # Wiktionary has the combined verb.
+        clause = []
+        for t in list(doc) + [None]:
+            if t is not None and not (t.is_punct and t.text in ".,;:!?"):
+                if t.i in index_of:
+                    clause.append(t)
+                continue
+            if len(clause) >= 2 and clause[-1].text.lower() in PARTICLES and len(tokens[index_of[clause[-1].i]]) == 3:
+                particle = clause[-1]
+                for candidate in clause[:2]:
+                    if candidate is particle:
+                        continue
+                    verb = next((particle.text.lower() + v for v in verb_lemmas(candidate)
+                                 if is_verb(particle.text.lower() + v)), None)
+                    if verb:
+                        link(candidate, particle, verb)
+                        stats["rule"] += 1
+                        break
+            clause = []
         sentences[key] = tokens
+    print(f"separable verbs linked: {stats['svp']} by spaCy, {stats['rule']} by the clause-end rule")
 
-    # Words with no entry of their own: try splitting compounds into known parts.
+    # Words with no entry of their own are explained by their parts.
     for word in surface_counts:
-        if known(word) or word.lower() in form_of or len(word) < 7:
-            continue
-        parts = split_compound(word, known)
-        if parts:
-            compounds[word.lower()] = parts
+        low = word.lower()
+        if low in candidate_compounds and not known(word) and low not in form_of:
+            compounds[low] = [p for p in candidate_compounds[low]]
 
     used_lemmas = {tok[1] for tokens in sentences.values() for tok in tokens} | verbs_used
     used_lemmas |= {p for parts in compounds.values() for p in parts}
@@ -331,9 +421,15 @@ def split_compound(word, known, depth=0):
             stem = left[: len(left) - len(link)] if link else left
             if len(stem) < 3:
                 continue
-            for candidate in (stem[:1].upper() + stem[1:], stem, stem + "e", (stem + "e")[:1].upper() + stem[1:] + "e"):
+            # A noun, an adjective, or a verb stem ("Nachzieh-stapel" from "nachziehen").
+            for candidate in (stem[:1].upper() + stem[1:], stem, stem[:1].upper() + stem[1:] + "e", stem + "en", stem + "n"):
                 if known(candidate):
                     return [candidate, head_word if known(head_word) else head]
+            # A separable verb's stem Wiktionary lacks: "nachzieh" = "nach" + "ziehen".
+            for particle in sorted(PARTICLES, key=len, reverse=True):
+                rest = stem[len(particle):]
+                if stem.startswith(particle) and len(rest) >= 3 and (known(rest + "en") or known(rest + "n")):
+                    return [particle, rest + "en" if known(rest + "en") else rest + "n", head_word if known(head_word) else head]
             if depth < 1:
                 inner = split_compound(stem, known, depth + 1)
                 if inner:
