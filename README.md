@@ -26,7 +26,7 @@ You need the .NET SDK (9 or newer), [MegaDot](https://github.com/Alchyr/ModTempl
    ```
 3. To also make the `.pck` (needed for the mod's own text files), publish:
    ```
-   dotnet publish
+   dotnet publish SpireLingo.csproj
    ```
 4. Start the game with mods enabled and check the log for `[SpireLingo] Loaded`.
 
