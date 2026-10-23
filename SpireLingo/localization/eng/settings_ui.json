@@ -26,5 +26,20 @@
   "SPIRELINGO-SHOW_ON_POWERS.title": "Powers",
   "SPIRELINGO-SHOW_ON_POWERS.hover.desc": "Adds a tooltip with the power's name and text in the target language.",
   "SPIRELINGO-SHOW_ON_INTENTS.title": "Enemy intents",
-  "SPIRELINGO-SHOW_ON_INTENTS.hover.desc": "Adds a tooltip with the enemy intent's name and text in the target language."
+  "SPIRELINGO-SHOW_ON_INTENTS.hover.desc": "Adds a tooltip with the enemy intent's name and text in the target language.",
+  "SPIRELINGO-DISCOVERY_SECTION.title": "Discovery mode",
+  "SPIRELINGO-DISCOVERY_KEY.title": "Discovery key",
+  "SPIRELINGO-DISCOVERY_KEY.hover.desc": "Press this key to turn discovery mode on or off. While it is on, the game is paused for input and you can click any word to look it up. Esc also leaves. F2 is not offered because the game uses it for feedback; some other F-keys are debug keys in developer builds.",
+  "SPIRELINGO-DISCOVERY_KEY.F8": "F8",
+  "SPIRELINGO-DISCOVERY_KEY.F12": "F12",
+  "SPIRELINGO-DISCOVERY_KEY.F1": "F1",
+  "SPIRELINGO-DISCOVERY_KEY.F3": "F3",
+  "SPIRELINGO-DISCOVERY_KEY.F4": "F4",
+  "SPIRELINGO-DISCOVERY_KEY.F5": "F5",
+  "SPIRELINGO-DISCOVERY_KEY.F6": "F6",
+  "SPIRELINGO-DISCOVERY_KEY.F7": "F7",
+  "SPIRELINGO-DISCOVERY_KEY.F9": "F9",
+  "SPIRELINGO-DISCOVERY_KEY.F10": "F10",
+  "SPIRELINGO-DISCOVERY_DIM.title": "Discovery dimming",
+  "SPIRELINGO-DISCOVERY_DIM.hover.desc": "How much the screen darkens while discovery mode is on, so it is clear the game is not taking clicks. 0 turns it off."
 }

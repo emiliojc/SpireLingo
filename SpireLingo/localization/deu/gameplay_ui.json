@@ -1,3 +1,7 @@
 {
-  "SPIRELINGO-TRANSLATION.title": "Übersetzung"
+  "SPIRELINGO-TRANSLATION.title": "Übersetzung",
+  "SPIRELINGO-DISCOVERY.badge": "Entdecken: klicke auf ein Wort ({Key} oder Esc zum Beenden)",
+  "SPIRELINGO-DISCOVERY.show_sentence": "Satz anzeigen",
+  "SPIRELINGO-DISCOVERY.hide_sentence": "Satz ausblenden",
+  "SPIRELINGO-DISCOVERY.no_translation": "Keine Übersetzung für diesen Text gefunden."
 }

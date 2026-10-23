@@ -26,5 +26,20 @@
   "SPIRELINGO-SHOW_ON_POWERS.title": "Kräfte",
   "SPIRELINGO-SHOW_ON_POWERS.hover.desc": "Fügt einen Tooltip mit Name und Text der Kraft in der Zielsprache hinzu.",
   "SPIRELINGO-SHOW_ON_INTENTS.title": "Gegnerabsichten",
-  "SPIRELINGO-SHOW_ON_INTENTS.hover.desc": "Fügt einen Tooltip mit Name und Text der Gegnerabsicht in der Zielsprache hinzu."
+  "SPIRELINGO-SHOW_ON_INTENTS.hover.desc": "Fügt einen Tooltip mit Name und Text der Gegnerabsicht in der Zielsprache hinzu.",
+  "SPIRELINGO-DISCOVERY_SECTION.title": "Entdeckungsmodus",
+  "SPIRELINGO-DISCOVERY_KEY.title": "Taste für den Entdeckungsmodus",
+  "SPIRELINGO-DISCOVERY_KEY.hover.desc": "Mit dieser Taste schaltest du den Entdeckungsmodus ein oder aus. Solange er an ist, nimmt das Spiel keine Eingaben an und du kannst jedes Wort anklicken, um es nachzuschlagen. Esc beendet ihn ebenfalls. F2 fehlt, weil das Spiel damit Feedback öffnet; einige andere F-Tasten sind in Entwicklerversionen Debug-Tasten.",
+  "SPIRELINGO-DISCOVERY_KEY.F8": "F8",
+  "SPIRELINGO-DISCOVERY_KEY.F12": "F12",
+  "SPIRELINGO-DISCOVERY_KEY.F1": "F1",
+  "SPIRELINGO-DISCOVERY_KEY.F3": "F3",
+  "SPIRELINGO-DISCOVERY_KEY.F4": "F4",
+  "SPIRELINGO-DISCOVERY_KEY.F5": "F5",
+  "SPIRELINGO-DISCOVERY_KEY.F6": "F6",
+  "SPIRELINGO-DISCOVERY_KEY.F7": "F7",
+  "SPIRELINGO-DISCOVERY_KEY.F9": "F9",
+  "SPIRELINGO-DISCOVERY_KEY.F10": "F10",
+  "SPIRELINGO-DISCOVERY_DIM.title": "Abdunkeln im Entdeckungsmodus",
+  "SPIRELINGO-DISCOVERY_DIM.hover.desc": "Wie stark der Bildschirm im Entdeckungsmodus abgedunkelt wird, damit klar ist, dass das Spiel keine Klicks annimmt. 0 schaltet es aus."
 }
