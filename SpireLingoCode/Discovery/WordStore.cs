@@ -163,8 +163,14 @@ internal static class WordStore
     {
         if (record.State == state) return;
         record.State = state;
+        StateVersion++;
         record.History.Add((DateTime.UtcNow, state));
     }
+
+    /// <summary>
+    /// Goes up whenever a word's state changes (or another word list is loaded), so on-screen marks update.
+    /// </summary>
+    public static int StateVersion { get; private set; }
 
     private static void MarkDirty() => _dirtySince ??= Time.GetTicksMsec();
 
@@ -178,6 +184,7 @@ internal static class WordStore
         _loadedFor = key;
         _path = ProjectSettings.GlobalizePath($"user://SpireLingo/words_{key}.json");
         Words.Clear();
+        StateVersion++;
         if (!File.Exists(_path)) return;
 
         try
