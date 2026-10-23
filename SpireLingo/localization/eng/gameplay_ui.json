@@ -1,3 +1,7 @@
 {
-  "SPIRELINGO-TRANSLATION.title": "Translation"
+  "SPIRELINGO-TRANSLATION.title": "Translation",
+  "SPIRELINGO-DISCOVERY.badge": "Discovery: click a word ({Key} or Esc to leave)",
+  "SPIRELINGO-DISCOVERY.show_sentence": "Show sentence",
+  "SPIRELINGO-DISCOVERY.hide_sentence": "Hide sentence",
+  "SPIRELINGO-DISCOVERY.no_translation": "No translation found for this text."
 }

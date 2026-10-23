@@ -23,6 +23,23 @@ public enum TargetLanguage
     tha
 }
 
+/// <summary>
+/// Keys that can toggle discovery mode. F2 is left out because the game opens its feedback screen with it.
+/// </summary>
+public enum DiscoveryKey
+{
+    F8,
+    F12,
+    F1,
+    F3,
+    F4,
+    F5,
+    F6,
+    F7,
+    F9,
+    F10
+}
+
 [ConfigHoverTipsByDefault]
 internal class SpireLingoConfig : SimpleModConfig
 {
@@ -37,4 +54,10 @@ internal class SpireLingoConfig : SimpleModConfig
     public static bool ShowOnPotions { get; set; } = true;
     public static bool ShowOnPowers { get; set; } = true;
     public static bool ShowOnIntents { get; set; } = true;
+
+    [ConfigSection("DiscoverySection")]
+    public static DiscoveryKey DiscoveryKey { get; set; } = DiscoveryKey.F8;
+
+    [ConfigSlider(0, 0.5, 0.05)]
+    public static double DiscoveryDim { get; set; } = 0.2;
 }
