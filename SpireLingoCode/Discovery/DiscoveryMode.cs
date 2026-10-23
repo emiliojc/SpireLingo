@@ -1,3 +1,4 @@
+using System.Text.RegularExpressions;
 using Godot;
 using SpireLingo.SpireLingoCode.Patches;
 using static SpireLingo.SpireLingoCode.Discovery.Ui;
@@ -315,13 +316,53 @@ public partial class DiscoveryMode : CanvasLayer
         CopyFont(word.Label);
 
         _popup.Visible = true;
+        Resize();
+    }
+
+    /// <summary>
+    /// Fits the popup to its content and places it again: below the word, or above it when it would run off the
+    /// bottom, always inside the screen. Text that wraps only knows its height a frame later, so it runs again then.
+    /// </summary>
+    private void Resize()
+    {
         _popup.ResetSize();
-        var screen = GetViewport().GetVisibleRect().Size;
-        var wordRect = word.ScreenTransform * word.LocalRect;
-        var position = new Vector2(wordRect.Position.X, wordRect.End.Y + 8);
-        if (position.Y + _popup.Size.Y > screen.Y) position.Y = wordRect.Position.Y - _popup.Size.Y - 8;
-        _popup.Position = new Vector2(Math.Clamp(position.X, 8, Math.Max(8, screen.X - _popup.Size.X - 8)),
-            Math.Clamp(position.Y, 8, Math.Max(8, screen.Y - _popup.Size.Y - 8)));
+        Place();
+        Callable.From(() =>
+        {
+            if (!_popup.Visible) return;
+            _popup.ResetSize();
+            Place();
+        }).CallDeferred();
+
+        void Place()
+        {
+            if (_selected == null || !GodotObject.IsInstanceValid(_selected.Label)) return;
+            var screen = GetViewport().GetVisibleRect().Size;
+            var wordRect = _selected.ScreenTransform * _selected.LocalRect;
+            var position = new Vector2(wordRect.Position.X, wordRect.End.Y + 8);
+            if (position.Y + _popup.Size.Y > screen.Y - 8) position.Y = wordRect.Position.Y - _popup.Size.Y - 8;
+            _popup.Position = new Vector2(Math.Clamp(position.X, 8, Math.Max(8, screen.X - _popup.Size.X - 8)),
+                Math.Clamp(position.Y, 8, Math.Max(8, screen.Y - _popup.Size.Y - 8)));
+        }
+    }
+
+    private static readonly Regex ImageTag = new(@"\[img[^\]]*\](.*?)\[/img\]");
+    private const string DefaultEnergyIcon = "res://images/packed/sprite_fonts/colorless_energy_icon.png";
+
+    /// <summary>
+    /// The images in a label's text, in order, as the popup shows them.
+    /// </summary>
+    private static List<string> ImagesOf(Control label) =>
+        label is RichTextLabel rich ? ImageTag.Matches(rich.Text).Select(m => m.Groups[1].Value).ToList() : [];
+
+    /// <summary>
+    /// Puts icons back where the text has Godot's image character: the given images in order, then
+    /// <paramref name="fallback"/>.
+    /// </summary>
+    private static string WithIcons(string text, IEnumerable<string> images, string fallback)
+    {
+        var queue = new Queue<string>(images);
+        return Regex.Replace(text, SentenceMatcher.Icon.ToString(), _ => $"[img=22]{(queue.Count > 0 ? queue.Dequeue() : fallback)}[/img]");
     }
 
     /// <summary>
@@ -399,7 +440,10 @@ public partial class DiscoveryMode : CanvasLayer
 
         _popupInfo.Text = string.Join("\n", info);
         _popupInfo.Visible = info.Count > 0;
-        _popupContext.Text = context;
+        // The line's own icons, skipping those of earlier lines in the label.
+        var images = ImagesOf(word.Label);
+        var before = WordFinder.TextOf(word.Label)[..word.LineStart].Count(c => c == SentenceMatcher.Icon);
+        _popupContext.Text = WithIcons(context, images.Skip(before), images.FirstOrDefault() ?? DefaultEnergyIcon);
     }
 
     private static string? Context(SentenceMatcher.Match? match) => match == null ? null : $"{match.Table}/{match.Key}#{match.Line}";
@@ -474,14 +518,16 @@ public partial class DiscoveryMode : CanvasLayer
         else
         {
             var match = _match;
+            // The translation's icons look like the clicked label's (the character's energy icon).
+            var icon = ImagesOf(_selected.Label).FirstOrDefault() ?? DefaultEnergyIcon;
             _popupSentence.Text = match is { Translation.Length: > 0 }
-                ? Escape(match.Translation)
+                ? WithIcons(Escape(match.Translation), [], icon)
                 : $"[i]{Escape(Text("SPIRELINGO-DISCOVERY.no_translation"))}[/i]";
             if (match != null) MainFile.Logger.Debug($"Discovery: matched {match.Table}/{match.Key}");
             _popupSentence.Visible = true;
             _sentenceButton.Text = Text("SPIRELINGO-DISCOVERY.hide_sentence");
         }
-        _popup.ResetSize();
+        Resize();
     }
 
     private void BuildPopup()
