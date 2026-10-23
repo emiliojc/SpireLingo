@@ -24,5 +24,7 @@
   "SPIRELINGO-SHOW_ON_POTIONS.title": "Tränke",
   "SPIRELINGO-SHOW_ON_POTIONS.hover.desc": "Fügt einen Tooltip mit Name und Text des Tranks in der Zielsprache hinzu.",
   "SPIRELINGO-SHOW_ON_POWERS.title": "Kräfte",
-  "SPIRELINGO-SHOW_ON_POWERS.hover.desc": "Fügt einen Tooltip mit Name und Text der Kraft in der Zielsprache hinzu."
+  "SPIRELINGO-SHOW_ON_POWERS.hover.desc": "Fügt einen Tooltip mit Name und Text der Kraft in der Zielsprache hinzu.",
+  "SPIRELINGO-SHOW_ON_INTENTS.title": "Gegnerabsichten",
+  "SPIRELINGO-SHOW_ON_INTENTS.hover.desc": "Fügt einen Tooltip mit Name und Text der Gegnerabsicht in der Zielsprache hinzu."
 }

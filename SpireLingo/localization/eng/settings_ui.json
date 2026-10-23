@@ -24,5 +24,7 @@
   "SPIRELINGO-SHOW_ON_POTIONS.title": "Potions",
   "SPIRELINGO-SHOW_ON_POTIONS.hover.desc": "Adds a tooltip with the potion's name and text in the target language.",
   "SPIRELINGO-SHOW_ON_POWERS.title": "Powers",
-  "SPIRELINGO-SHOW_ON_POWERS.hover.desc": "Adds a tooltip with the power's name and text in the target language."
+  "SPIRELINGO-SHOW_ON_POWERS.hover.desc": "Adds a tooltip with the power's name and text in the target language.",
+  "SPIRELINGO-SHOW_ON_INTENTS.title": "Enemy intents",
+  "SPIRELINGO-SHOW_ON_INTENTS.hover.desc": "Adds a tooltip with the enemy intent's name and text in the target language."
 }

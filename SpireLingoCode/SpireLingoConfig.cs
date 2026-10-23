@@ -36,4 +36,5 @@ internal class SpireLingoConfig : SimpleModConfig
     public static bool ShowOnRelics { get; set; } = true;
     public static bool ShowOnPotions { get; set; } = true;
     public static bool ShowOnPowers { get; set; } = true;
+    public static bool ShowOnIntents { get; set; } = true;
 }

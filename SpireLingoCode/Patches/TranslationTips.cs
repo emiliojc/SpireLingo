@@ -6,11 +6,13 @@ using MegaCrit.Sts2.Core.Entities.Creatures;
 using MegaCrit.Sts2.Core.HoverTips;
 using MegaCrit.Sts2.Core.Localization;
 using MegaCrit.Sts2.Core.Models;
+using MegaCrit.Sts2.Core.MonsterMoves.Intents;
+using MegaCrit.Sts2.Core.Nodes.Combat;
 
 namespace SpireLingo.SpireLingoCode.Patches;
 
 /// <summary>
-/// Appends a hover tip with the target-language text of the hovered card, relic, potion or power.
+/// Appends a hover tip with the target-language text of the hovered card, relic, potion, power or enemy intent.
 /// The text is produced by re-running the game's own formatting with target-language lookups,
 /// so numbers like damage and block match what the card shows.
 /// </summary>
@@ -155,6 +157,54 @@ static class TranslationTips
             catch (Exception e)
             {
                 MainFile.Logger.Warn($"Could not translate card {card.Id}: {e.Message}");
+            }
+        }
+    }
+
+    /// <summary>
+    /// An intent hands its creature a single tip to show, so the translation is added on the way
+    /// into <see cref="NCreature.ShowHoverTips"/> while that intent is being hovered.
+    /// </summary>
+    [ThreadStatic] private static NIntent? _hoveredIntent;
+
+    private static readonly AccessTools.FieldRef<NIntent, AbstractIntent?> IntentField = AccessTools.FieldRefAccess<NIntent, AbstractIntent?>("_intent");
+    private static readonly AccessTools.FieldRef<NIntent, IEnumerable<Creature>?> TargetsField = AccessTools.FieldRefAccess<NIntent, IEnumerable<Creature>?>("_targets");
+    private static readonly AccessTools.FieldRef<NIntent, Creature?> OwnerField = AccessTools.FieldRefAccess<NIntent, Creature?>("_owner");
+
+    // OnHovered is private, so it is named by string.
+    [HarmonyPatch(typeof(NIntent), "OnHovered")]
+    private static class IntentHovered
+    {
+        [HarmonyPrefix]
+        static void Prefix(NIntent __instance) => _hoveredIntent = __instance;
+
+        [HarmonyFinalizer]
+        static void Finalizer() => _hoveredIntent = null;
+    }
+
+    [HarmonyPatch(typeof(NCreature), nameof(NCreature.ShowHoverTips))]
+    private static class IntentTips
+    {
+        [HarmonyPrefix]
+        static void Prefix(ref IEnumerable<IHoverTip> hoverTips)
+        {
+            var node = _hoveredIntent;
+            if (node == null || !SpireLingoConfig.ShowOnIntents || TargetText.IsActive || !TargetText.IsUseful) return;
+
+            var intent = IntentField(node);
+            var owner = OwnerField(node);
+            if (intent == null || owner == null) return;
+            var targets = TargetsField(node) ?? [];
+
+            try
+            {
+                // The damage and hit count come from the same calculation the intent label uses.
+                var tip = TargetText.Format(() => intent.GetHoverTip(targets, owner));
+                hoverTips = hoverTips.Append(MakeTip(tip.Title ?? "", tip.Description ?? "", $"INTENT-{intent.IntentType}"));
+            }
+            catch (Exception e)
+            {
+                MainFile.Logger.Warn($"Could not translate intent {intent.GetType().Name}: {e.Message}");
             }
         }
     }

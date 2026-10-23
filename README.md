@@ -1,6 +1,6 @@
 # SpireLingo
 
-A Slay the Spire 2 mod for learning a language while you play. It adds an extra tooltip to cards, relics, potions and powers that shows their text in a second language, using the game's own official translations. Play in the language you are learning, and check the translation whenever you get stuck.
+A Slay the Spire 2 mod for learning a language while you play. It adds an extra tooltip to cards, relics, potions, powers and enemy intents that shows their text in a second language, using the game's own official translations. Play in the language you are learning, and check the translation whenever you get stuck.
 
 Example: with the game set to German and the target language set to English, hovering a card shows a "Translation" tooltip with its English name and text, with the same numbers as the card.
 
@@ -11,7 +11,7 @@ Requires [BaseLib](https://github.com/Alchyr/BaseLib-StS2).
 In the mod config menu (from BaseLib):
 
 - **Target language**: the language shown in the extra tooltip (default English). Restart the game after changing it.
-- **Show translation on**: turn the tooltip on or off for cards, relics, potions and powers.
+- **Show translation on**: turn the tooltip on or off for cards, relics, potions, powers and enemy intents.
 
 The tooltip only appears when the game's language is different from the target language.
 
