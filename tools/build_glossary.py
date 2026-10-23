@@ -375,7 +375,7 @@ def build(pck, kaikki_path, model_name):
     for word in surface_counts:
         low = word.lower()
         if low in candidate_compounds and not known(word) and low not in form_of:
-            compounds[low] = [p for p in candidate_compounds[low]]
+            compounds[low] = list(candidate_compounds[low])
 
     used_lemmas = {tok[1] for tokens in sentences.values() for tok in tokens} | verbs_used
     used_lemmas |= {p for parts in compounds.values() for p in parts}
