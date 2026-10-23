@@ -1,5 +1,6 @@
 using System.Reflection;
 using System.Runtime.CompilerServices;
+using Godot;
 using HarmonyLib;
 using MegaCrit.Sts2.Core.Entities.Cards;
 using MegaCrit.Sts2.Core.Entities.Creatures;
@@ -8,6 +9,8 @@ using MegaCrit.Sts2.Core.Localization;
 using MegaCrit.Sts2.Core.Models;
 using MegaCrit.Sts2.Core.MonsterMoves.Intents;
 using MegaCrit.Sts2.Core.Nodes.Combat;
+using MegaCrit.Sts2.Core.Nodes.HoverTips;
+using SpireLingo.SpireLingoCode.Discovery;
 
 namespace SpireLingo.SpireLingoCode.Patches;
 
@@ -24,6 +27,34 @@ static class TranslationTips
     private static readonly PropertyInfo? TitleProperty = AccessTools.Property(typeof(HoverTip), "Title");
 
     private static LocString TipTitle() => new("gameplay_ui", "SPIRELINGO-TRANSLATION.title");
+
+    /// <summary>
+    /// No translation tips while discovery mode is on, so the screen stays uncluttered.
+    /// </summary>
+    private static bool Skip => TargetText.IsActive || !TargetText.IsUseful || DiscoveryMode.IsActive;
+
+    private static readonly FieldInfo? ActiveTipSets = AccessTools.Field(typeof(NHoverTipSet), "_activeHoverTips");
+    private static readonly FieldInfo? TextTipContainer = AccessTools.Field(typeof(NHoverTipSet), "_textHoverTipContainer");
+
+    /// <summary>
+    /// Hides the translation tips in tooltips that are already open. The game shows each tip as a node with
+    /// a %Title label, so ours are the ones titled like <see cref="TipTitle"/>.
+    /// </summary>
+    internal static void HideOpenTips()
+    {
+        if (ActiveTipSets?.GetValue(null) is not System.Collections.IDictionary sets || TextTipContainer == null) return;
+        var title = TipTitle().GetFormattedText();
+        foreach (var set in sets.Values)
+        {
+            if (set is not Node node || !GodotObject.IsInstanceValid(node) || TextTipContainer.GetValue(set) is not Node container) continue;
+            foreach (var tip in container.GetChildren())
+            {
+                if (tip is CanvasItem item && tip.GetNodeOrNull<Label>("%Title") is { } label &&
+                    string.Equals(label.Text, title, StringComparison.OrdinalIgnoreCase))
+                    item.Visible = false;
+            }
+        }
+    }
 
     private static IHoverTip MakeTip(string title, string description, string id)
     {
@@ -45,7 +76,7 @@ static class TranslationTips
     private static IEnumerable<IHoverTip> AppendFromOwnTip(IEnumerable<IHoverTip> tips, AbstractModel model,
         Func<IEnumerable<IHoverTip>> regenerate)
     {
-        if (TargetText.IsActive || !TargetText.IsUseful) return tips;
+        if (Skip) return tips;
 
         try
         {
@@ -139,7 +170,7 @@ static class TranslationTips
         [HarmonyPostfix]
         static void Postfix(CardModel __instance, ref IEnumerable<IHoverTip> __result)
         {
-            if (!SpireLingoConfig.ShowOnCards || TargetText.IsActive || !TargetText.IsUseful) return;
+            if (!SpireLingoConfig.ShowOnCards || Skip) return;
 
             var card = __instance;
             try
@@ -175,7 +206,7 @@ static class TranslationTips
         [HarmonyPostfix]
         static void Postfix(AbstractIntent __instance, IEnumerable<Creature> targets, Creature owner, HoverTip __result)
         {
-            if (!SpireLingoConfig.ShowOnIntents || TargetText.IsActive || !TargetText.IsUseful) return;
+            if (!SpireLingoConfig.ShowOnIntents || Skip) return;
 
             var intent = __instance;
             try

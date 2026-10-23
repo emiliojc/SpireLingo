@@ -2,6 +2,7 @@ using Godot;
 using HarmonyLib;
 using MegaCrit.Sts2.Core.Localization;
 using MegaCrit.Sts2.Core.Nodes.HoverTips;
+using SpireLingo.SpireLingoCode.Patches;
 
 namespace SpireLingo.SpireLingoCode.Discovery;
 
@@ -144,6 +145,7 @@ public partial class DiscoveryMode : CanvasLayer
             _badgeLabel.Text = Text("SPIRELINGO-DISCOVERY.badge").Replace("{Key}", ToggleKey.ToString());
             _badge.ResetSize();
             _badge.Position = new Vector2((GetViewport().GetVisibleRect().Size.X - _badge.Size.X) / 2, 16);
+            TranslationTips.HideOpenTips();
         }
         else
         {
