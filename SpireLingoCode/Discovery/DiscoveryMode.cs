@@ -68,6 +68,7 @@ public partial class DiscoveryMode : CanvasLayer
         _dim = new ColorRect { MouseFilter = Control.MouseFilterEnum.Ignore, Visible = false };
         _dim.SetAnchorsPreset(Control.LayoutPreset.FullRect);
         AddChild(_dim);
+        AddChild(StateMarks.Create(this));
 
         _hoverMark = MakeMark(0.18f);
         _selectedMark = MakeMark(0.3f);

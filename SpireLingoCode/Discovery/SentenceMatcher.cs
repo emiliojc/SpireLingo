@@ -94,6 +94,21 @@ internal static class SentenceMatcher
         return null;
     }
 
+    /// <summary>
+    /// The parts of a line with the game text each was found in: the whole line if it matches, otherwise each
+    /// sentence on its own (null where a sentence isn't found).
+    /// </summary>
+    public static IEnumerable<(int start, int length, Match? match)> Segments(string line)
+    {
+        EnsureBuilt();
+        if (TryMatch(line) is { } whole)
+        {
+            yield return (0, line.Length, whole);
+            yield break;
+        }
+        foreach (var (start, length) in Sentences(line)) yield return (start, length, TryMatch(line.Substring(start, length)));
+    }
+
     private static Match? TryMatch(string text)
     {
         var normalized = Normalize(text);

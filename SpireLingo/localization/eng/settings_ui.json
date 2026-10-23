@@ -43,5 +43,7 @@
   "SPIRELINGO-DISCOVERY_DIM.title": "Discovery dimming",
   "SPIRELINGO-DISCOVERY_DIM.hover.desc": "How much the screen darkens while discovery mode is on, so it is clear the game is not taking clicks. 0 turns it off.",
   "SPIRELINGO-SHOW_DISCOVERY_BUTTON.title": "Discovery button",
-  "SPIRELINGO-SHOW_DISCOVERY_BUTTON.hover.desc": "Shows a magnifier button in the top bar (or the top-right corner outside a run) that turns discovery mode on and off."
+  "SPIRELINGO-SHOW_DISCOVERY_BUTTON.hover.desc": "Shows a magnifier button in the top bar (or the top-right corner outside a run) that turns discovery mode on and off.",
+  "SPIRELINGO-SHOW_STATE_COLOURS.title": "Word state colours",
+  "SPIRELINGO-SHOW_STATE_COLOURS.hover.desc": "In discovery mode, underlines your saved words on screen: orange for Learning, faint green for Recognised, faint grey for Looked up. Known and ignored words stay unmarked."
 }

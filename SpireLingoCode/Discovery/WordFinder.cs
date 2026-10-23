@@ -40,6 +40,20 @@ internal static class WordFinder
         for (var i = 0; i < node.GetChildCount(); i++) Collect(node.GetChild(i));
     }
 
+    /// <summary>
+    /// The text labels currently shown and at least partly on screen, outside <paramref name="skip"/>.
+    /// </summary>
+    public static IEnumerable<Control> VisibleLabels(Rect2 screen, Node? skip)
+    {
+        foreach (var label in Labels)
+        {
+            if (!GodotObject.IsInstanceValid(label) || !label.IsVisibleInTree() || label.Size == Vector2.Zero) continue;
+            if (!screen.Intersects(label.GetGlobalTransformWithCanvas() * new Rect2(Vector2.Zero, label.Size))) continue;
+            if (DrawOrder(label, skip) == null) continue;
+            yield return label;
+        }
+    }
+
     public static FoundWord? At(Vector2 screenPoint, Node? skip)
     {
         Control? top = null;
