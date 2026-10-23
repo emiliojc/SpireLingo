@@ -254,7 +254,7 @@ public partial class DiscoveryMode : CanvasLayer
 
     /// <summary>
     /// Where there is no top bar to hold the discovery button (the main menu and other screens outside a run),
-    /// it sits in the top-right corner, the size of a top bar icon.
+    /// it sits beside the main menu's patch notes button, or in the top-right corner, the size of a top bar icon.
     /// </summary>
     private void BuildCornerButton()
     {
@@ -279,9 +279,23 @@ public partial class DiscoveryMode : CanvasLayer
         var show = SpireLingoConfig.ShowDiscoveryButton && !inTopBar && !_vocabulary.IsOpen;
         if (_cornerButton.Visible != show) _cornerButton.Visible = show;
         if (!show) return;
-        _cornerButton.Position = new Vector2(GetViewport().GetVisibleRect().Size.X - CornerSize - 16, 16);
+        _cornerButton.Position = CornerPosition();
         // Without the icon the button needs a label, which can only be read once the game's text is loaded.
         if (_cornerButton.Icon == null && _cornerButton.Text.Length == 0) _cornerButton.Text = Text("SPIRELINGO-DISCOVERY.button", "");
+    }
+
+    /// <summary>
+    /// Left of the patch notes button when it is showing (so the two don't overlap on the main menu), otherwise
+    /// the top-right corner.
+    /// </summary>
+    private Vector2 CornerPosition()
+    {
+        if (MainMenuButton.PatchNotes is { } notes && GodotObject.IsInstanceValid(notes) && notes.IsVisibleInTree())
+        {
+            var rect = notes.GetGlobalTransformWithCanvas() * new Rect2(Vector2.Zero, notes.Size);
+            return new Vector2(rect.Position.X - CornerSize - 12, rect.GetCenter().Y - CornerSize / 2);
+        }
+        return new Vector2(GetViewport().GetVisibleRect().Size.X - CornerSize - 16, 16);
     }
 
     private void Select(FoundWord? word)

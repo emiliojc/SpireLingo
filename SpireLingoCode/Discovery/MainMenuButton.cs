@@ -14,9 +14,26 @@ static class MainMenuButton
 {
     private const string NodeName = "SpireLingoVocabularyButton";
 
+    private static readonly AccessTools.FieldRef<NMainMenu, NPatchNotesButton?> PatchNotesField =
+        AccessTools.FieldRefAccess<NMainMenu, NPatchNotesButton?>("_patchNotesButtonNode");
+
+    /// <summary>
+    /// The main menu's patch notes button (top right), which the discovery button sits beside on the main menu.
+    /// </summary>
+    internal static Control? PatchNotes { get; private set; }
+
     [HarmonyPostfix]
     static void Postfix(NMainMenu __instance)
     {
+        try
+        {
+            PatchNotes = PatchNotesField(__instance);
+        }
+        catch (Exception e)
+        {
+            MainFile.Logger.Warn($"Could not find the main menu's patch notes button: {e.Message}");
+        }
+
         try
         {
             if (__instance.GetNodeOrNull<NMainMenuTextButton>("MainMenuTextButtons/CompendiumButton") is not { } compendium) return;
