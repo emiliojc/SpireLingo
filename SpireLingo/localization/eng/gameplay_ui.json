@@ -21,5 +21,9 @@
   "SPIRELINGO-DISCOVERY.pos.name": "name",
   "SPIRELINGO-DISCOVERY.pos.intj": "interjection",
   "SPIRELINGO-DISCOVERY.pos.phrase": "phrase",
-  "SPIRELINGO-DISCOVERY.pos.contraction": "contraction"
+  "SPIRELINGO-DISCOVERY.pos.contraction": "contraction",
+  "SPIRELINGO-DISCOVERY.state.learning": "Learning",
+  "SPIRELINGO-DISCOVERY.state.known": "Known",
+  "SPIRELINGO-DISCOVERY.state.ignore": "Ignore",
+  "SPIRELINGO-DISCOVERY.looked_up": "looked up {Count}×"
 }

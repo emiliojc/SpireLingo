@@ -21,5 +21,9 @@
   "SPIRELINGO-DISCOVERY.pos.name": "Name",
   "SPIRELINGO-DISCOVERY.pos.intj": "Interjektion",
   "SPIRELINGO-DISCOVERY.pos.phrase": "Wendung",
-  "SPIRELINGO-DISCOVERY.pos.contraction": "Verschmelzung"
+  "SPIRELINGO-DISCOVERY.pos.contraction": "Verschmelzung",
+  "SPIRELINGO-DISCOVERY.state.learning": "Lerne ich",
+  "SPIRELINGO-DISCOVERY.state.known": "Kenne ich",
+  "SPIRELINGO-DISCOVERY.state.ignore": "Ignorieren",
+  "SPIRELINGO-DISCOVERY.looked_up": "{Count}× nachgeschlagen"
 }
