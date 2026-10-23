@@ -36,6 +36,8 @@ internal static class Glossary
     private static Dictionary<string, string[]> _forms = [];
     private static Dictionary<string, string[]> _compounds = [];
     private static Dictionary<string, Token[]> _lines = [];
+    // Base form -> the game text lines using it ("cards/STRIKE.description#0"), built on first use.
+    private static Dictionary<string, List<string>>? _linesByLemma;
 
     public static bool IsLoaded => _entries.Count > 0;
 
@@ -54,6 +56,8 @@ internal static class Glossary
         _forms = [];
         _compounds = [];
         _lines = [];
+        _linesByLemma = null;
+        _separable = null;
 
         var glossaryPath = $"res://SpireLingo/data/glossary_{from}_{to}.json";
         var sentencesPath = $"res://SpireLingo/data/sentences_{from}.json";
@@ -86,6 +90,58 @@ internal static class Glossary
         if (_lowerLemmas.TryGetValue(surface.ToLowerInvariant(), out var bySurface)) return _entries[bySurface[0]];
         return [];
     }
+
+    /// <summary>
+    /// The entries for exactly this base form.
+    /// </summary>
+    public static List<Entry> EntriesFor(string lemma) => _entries.GetValueOrDefault(lemma) ?? [];
+
+    /// <summary>
+    /// The game text lines that use a base form, as "table/key#line".
+    /// </summary>
+    public static IReadOnlyList<string> LinesWith(string lemma)
+    {
+        if (_linesByLemma == null)
+        {
+            _linesByLemma = [];
+            foreach (var (line, tokens) in _lines)
+            foreach (var lemmaInLine in tokens.Select(t => t.Lemma).Distinct())
+            {
+                if (!_linesByLemma.TryGetValue(lemmaInLine, out var list)) _linesByLemma[lemmaInLine] = list = [];
+                list.Add(line);
+            }
+        }
+        return _linesByLemma.GetValueOrDefault(lemma) ?? (IReadOnlyList<string>)[];
+    }
+
+    // Separable verb -> its particle, from the lines where the game splits it ("zufügen" -> "zu").
+    private static Dictionary<string, string>? _separable;
+
+    /// <summary>
+    /// The particle of a verb the game's text uses split ("zu" for "zufügen"), or null.
+    /// </summary>
+    public static string? SeparablePrefix(string lemma)
+    {
+        if (_separable == null)
+        {
+            _separable = [];
+            foreach (var tokens in _lines.Values)
+            foreach (var t in tokens)
+                if (t.Partner >= 0 && t.Pos == "particle") _separable.TryAdd(t.Lemma, t.Surface);
+        }
+        return _separable.GetValueOrDefault(lemma);
+    }
+
+    /// <summary>
+    /// How many lines of the game's text use a base form.
+    /// </summary>
+    public static int Frequency(string lemma) => LinesWith(lemma).Count;
+
+    /// <summary>
+    /// The surfaces in a line that belong to a base form (both halves of a separable verb, every inflection).
+    /// </summary>
+    public static IEnumerable<string> SurfacesOf(string lineRef, string lemma) =>
+        _lines.GetValueOrDefault(lineRef)?.Where(t => t.Lemma == lemma).Select(t => t.Surface).Distinct() ?? [];
 
     public static string[]? CompoundParts(string surface) => _compounds.GetValueOrDefault(surface.ToLowerInvariant());
 

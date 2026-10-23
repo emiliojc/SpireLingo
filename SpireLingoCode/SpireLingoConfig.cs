@@ -60,4 +60,6 @@ internal class SpireLingoConfig : SimpleModConfig
 
     [ConfigSlider(0, 0.5, 0.05)]
     public static double DiscoveryDim { get; set; } = 0.2;
+
+    public static bool ShowDiscoveryButton { get; set; } = true;
 }

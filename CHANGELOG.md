@@ -3,6 +3,20 @@
 All notable changes to SpireLingo. Versions follow [Semantic Versioning](https://semver.org/); the version
 lives in `SpireLingo.json` and is copied into the DLL at build time.
 
+## 0.5.0 - 2026-10-23
+
+### Added
+- Vocabulary screen: your saved words, all of them in the All tab (where it opens) or by state (Learning,
+  Recognised, Known, Looked up, Seen, Ignored), with search (just type) and sorting by last met, look-ups or how
+  common the word is in the game. Clicking a word opens its page: base form with article and plural, all
+  meanings, compound parts or separable-verb note, the Wiktionary example, up to five different game sentences
+  you met it in with their English line, its history, and the Learning · Known · Ignore chips. Esc or Close
+  leaves it.
+- A "Vocabulary" button in the main menu (below Compendium) and on the discovery badge open it.
+- A discovery button with the game's magnifying-glass icon turns discovery mode on and off and names its key
+  when hovered: in the top bar during a run (between the timer and the map), and in the top-right corner on
+  screens without a top bar, such as the main menu. A setting hides it.
+
 ## 0.4.0 - 2026-10-23
 
 ### Added
