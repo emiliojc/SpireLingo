@@ -49,6 +49,8 @@ internal class SpireLingoConfig : SimpleModConfig
     public static TargetLanguage TargetLanguage { get; set; } = TargetLanguage.eng;
 
     [ConfigSection("ShowOnSection")]
+    // Master switch: off hides every translation tooltip, whatever the switches below say.
+    public static bool ShowTranslationTips { get; set; } = true;
     public static bool ShowOnCards { get; set; } = true;
     public static bool ShowOnRelics { get; set; } = true;
     public static bool ShowOnPotions { get; set; } = true;

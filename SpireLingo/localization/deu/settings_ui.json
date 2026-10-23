@@ -45,5 +45,7 @@
   "SPIRELINGO-SHOW_DISCOVERY_BUTTON.title": "Entdecken-Knopf",
   "SPIRELINGO-SHOW_DISCOVERY_BUTTON.hover.desc": "Zeigt in der oberen Leiste (außerhalb eines Laufs oben rechts) einen Lupen-Knopf, der den Entdeckungsmodus ein- und ausschaltet.",
   "SPIRELINGO-SHOW_STATE_COLOURS.title": "Farben für Wortstatus",
-  "SPIRELINGO-SHOW_STATE_COLOURS.hover.desc": "Unterstreicht im Entdeckungsmodus deine gespeicherten Wörter: orange für „Lerne ich“, grün für „Kenne ich“, blasstürkis für „Wiedererkannt“, blassgrau für „Nachgeschlagen“. Ignorierte Wörter bleiben unmarkiert."
+  "SPIRELINGO-SHOW_STATE_COLOURS.hover.desc": "Unterstreicht im Entdeckungsmodus deine gespeicherten Wörter: orange für „Lerne ich“, grün für „Kenne ich“, blasstürkis für „Wiedererkannt“, blassgrau für „Nachgeschlagen“. Ignorierte Wörter bleiben unmarkiert.",
+  "SPIRELINGO-SHOW_TRANSLATION_TIPS.title": "Übersetzungs-Tooltips",
+  "SPIRELINGO-SHOW_TRANSLATION_TIPS.hover.desc": "Zeigt den zusätzlichen „Übersetzung“-Tooltip neben dem des Spiels. Schalte ihn aus, um nur mit dem Entdeckungsmodus und dem Wortschatz zu lernen; die Schalter darunter wirken dann nicht."
 }

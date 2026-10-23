@@ -5,6 +5,10 @@ lives in `SpireLingo.json` and is copied into the DLL at build time.
 
 ## 0.6.1 - 2026-10-23
 
+### Added
+- A "Translation tooltips" setting that hides every "Translation" tooltip at once, for learning only with
+  discovery mode and the vocabulary screen. The per-type switches apply only while it is on.
+
 ### Fixed
 - The glossary no longer turns short words and abbreviations into place or person names: "kl." is klein,
   "mi." mittel, "max." maximal, and die, so, alle, groß and aus are the ordinary words again (not the Algarve,

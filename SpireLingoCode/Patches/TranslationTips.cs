@@ -32,7 +32,7 @@ static class TranslationTips
     /// <summary>
     /// No translation tips while discovery mode is on, so the screen stays uncluttered.
     /// </summary>
-    private static bool Skip => TargetText.IsActive || !TargetText.IsUseful || DiscoveryMode.IsActive;
+    private static bool Skip => !SpireLingoConfig.ShowTranslationTips || TargetText.IsActive || !TargetText.IsUseful || DiscoveryMode.IsActive;
 
     private static IHoverTip MakeTip(string title, string description, string id)
     {
