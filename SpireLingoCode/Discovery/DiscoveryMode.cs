@@ -149,8 +149,8 @@ public partial class DiscoveryMode : CanvasLayer
         if (!IsActive) return;
 
         var mouse = GetViewport().GetMousePosition();
-        // The mod's own buttons (popup, badge, corner button) keep working.
-        if (@event is InputEventMouse && new Control[] { _popup, _badge, _cornerButton }.Any(c => c.Visible && c.GetGlobalRect().HasPoint(mouse))) return;
+        // The mod's own buttons (popup, badge, discovery button) keep working.
+        if (@event is InputEventMouse && OverOwnButton(mouse)) return;
 
         switch (@event)
         {
@@ -233,53 +233,64 @@ public partial class DiscoveryMode : CanvasLayer
     /// A small button on every screen that turns discovery mode on and off, so players learn it works anywhere.
     /// It is faint until hovered and covers only its own small rectangle.
     /// </summary>
+    public void Toggle() => SetActive(!IsActive);
+
+    private bool OverOwnButton(Vector2 mouse)
+    {
+        if (new Control[] { _popup, _badge, _cornerButton }.Any(c => c.Visible && c.GetGlobalRect().HasPoint(mouse))) return true;
+        // The top bar button lives in the game's tree, possibly on another canvas layer.
+        return TopBarButton.Button is { } button && GodotObject.IsInstanceValid(button) && button.IsVisibleInTree() &&
+               new Rect2(Vector2.Zero, button.Size).HasPoint(button.GetGlobalTransformWithCanvas().AffineInverse() * mouse);
+    }
+
+    /// <summary>
+    /// The discovery button's tooltip, naming the key; empty until the game's text is loaded.
+    /// </summary>
+    internal static string ButtonTip()
+    {
+        try
+        {
+            return Text("SPIRELINGO-DISCOVERY.button_tip").Replace("{Key}", ToggleKey.ToString());
+        }
+        catch
+        {
+            return "";
+        }
+    }
+
+    private const float CornerSize = 56;
+
+    /// <summary>
+    /// Where there is no top bar to hold the discovery button (the main menu and other screens outside a run),
+    /// it sits in the top-right corner, the size of a top bar icon.
+    /// </summary>
     private void BuildCornerButton()
     {
         _cornerButton = MakeButton(fontSize: 16);
-        // The game's own magnifying-glass cursor (an Image resource, so it is turned into a texture here).
-        try
+        if (MagnifierIcon() is { } icon)
         {
-            var icon = ResourceLoader.Load("res://images/packed/common_ui/cursor_inspect.png") switch
-            {
-                Image image => ImageTexture.CreateFromImage(image),
-                Texture2D texture => texture,
-                _ => null
-            };
-            if (icon != null)
-            {
-                _cornerButton.Icon = icon;
-                _cornerButton.ExpandIcon = true;
-                _cornerButton.Flat = true;
-                _cornerButton.CustomMinimumSize = new Vector2(44, 44);
-            }
+            _cornerButton.Icon = icon;
+            _cornerButton.ExpandIcon = true;
+            _cornerButton.Flat = true;
         }
-        catch (Exception e)
-        {
-            MainFile.Logger.Warn($"Discovery: could not load the magnifier icon, using text: {e.Message}");
-        }
-        _cornerButton.Modulate = new Color(1, 1, 1, 0.45f);
-        _cornerButton.MouseEntered += () => _cornerButton.Modulate = Colors.White;
-        _cornerButton.MouseExited += () => _cornerButton.Modulate = new Color(1, 1, 1, 0.45f);
-        _cornerButton.Pressed += () => SetActive(!IsActive);
-        _cornerButton.Position = new Vector2(8, 470);
+        _cornerButton.CustomMinimumSize = new Vector2(CornerSize, CornerSize);
+        _cornerButton.PivotOffset = new Vector2(CornerSize, CornerSize) / 2;
+        GrowOnHover(_cornerButton);
+        _cornerButton.Pressed += Toggle;
         AddChild(_cornerButton);
     }
 
     private void UpdateCornerButton()
     {
-        var show = SpireLingoConfig.ShowDiscoveryButton && !_vocabulary.IsOpen;
+        var inTopBar = TopBarButton.Update();
+        var show = SpireLingoConfig.ShowDiscoveryButton && !inTopBar && !_vocabulary.IsOpen;
         if (_cornerButton.Visible != show) _cornerButton.Visible = show;
+        if (!show) return;
+        _cornerButton.Position = new Vector2(GetViewport().GetVisibleRect().Size.X - CornerSize - 16, 16);
         // The game's text isn't loaded when the layer is built, so the tooltip is filled in once it is.
-        if (!show || _cornerButton.TooltipText.Length > 0) return;
-        try
-        {
-            if (_cornerButton.Icon == null) _cornerButton.Text = Text("SPIRELINGO-DISCOVERY.button");
-            _cornerButton.TooltipText = Text("SPIRELINGO-DISCOVERY.button_tip").Replace("{Key}", ToggleKey.ToString());
-        }
-        catch
-        {
-            // Not loaded yet; try again next frame.
-        }
+        if (_cornerButton.TooltipText.Length > 0) return;
+        _cornerButton.TooltipText = ButtonTip();
+        if (_cornerButton.Icon == null && _cornerButton.TooltipText.Length > 0) _cornerButton.Text = Text("SPIRELINGO-DISCOVERY.button");
     }
 
     private void Select(FoundWord? word)

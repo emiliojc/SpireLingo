@@ -75,6 +75,42 @@ internal static class Ui
         }
     }
 
+    private static Texture2D? _magnifier;
+    private static bool _magnifierLoaded;
+
+    /// <summary>
+    /// The game's own magnifying-glass cursor, the discovery button's icon. It is an Image resource, so it is
+    /// turned into a texture. Null if it can't be loaded.
+    /// </summary>
+    public static Texture2D? MagnifierIcon()
+    {
+        if (_magnifierLoaded) return _magnifier;
+        _magnifierLoaded = true;
+        try
+        {
+            _magnifier = ResourceLoader.Load("res://images/packed/common_ui/cursor_inspect.png") switch
+            {
+                Image image => ImageTexture.CreateFromImage(image),
+                Texture2D texture => texture,
+                _ => null
+            };
+        }
+        catch (Exception e)
+        {
+            MainFile.Logger.Warn($"Discovery: could not load the magnifier icon: {e.Message}");
+        }
+        return _magnifier;
+    }
+
+    /// <summary>
+    /// Grows a little while hovered, like the game's top bar buttons.
+    /// </summary>
+    public static void GrowOnHover(Control control)
+    {
+        control.MouseEntered += () => control.Scale = new Vector2(1.1f, 1.1f);
+        control.MouseExited += () => control.Scale = Vector2.One;
+    }
+
     public static string Escape(string text) => text.Replace("[", "[lb]");
 
     public static string Article(string? gender) => gender switch

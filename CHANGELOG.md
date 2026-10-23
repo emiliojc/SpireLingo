@@ -13,8 +13,9 @@ lives in `SpireLingo.json` and is copied into the DLL at build time.
   you met it in with their English line, its history, and the Learning · Known · Ignore chips. Esc or Close
   leaves it.
 - A "Vocabulary" button in the main menu (below Compendium) and on the discovery badge open it.
-- A small "Discover" button on the left edge of every screen, main menu included, turns discovery mode on and
-  off and shows its key when hovered. A setting hides it. Its icon is the game's magnifying-glass cursor.
+- A discovery button with the game's magnifying-glass icon turns discovery mode on and off and names its key
+  when hovered: in the top bar during a run (between the timer and the map), and in the top-right corner on
+  screens without a top bar, such as the main menu. A setting hides it.
 
 ## 0.4.0 - 2026-10-23
 
