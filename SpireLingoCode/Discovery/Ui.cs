@@ -12,6 +12,7 @@ internal static class Ui
 {
     public static readonly Color HighlightColor = new(1f, 0.85f, 0.3f);
     public static readonly Color MutedColor = new(0.69f, 0.69f, 0.69f);
+    public static readonly Color LinkColor = new(0.55f, 0.8f, 1f);
 
     public static RichTextLabel MakeText(Color color, float width = 420, int fontSize = 20)
     {
@@ -138,6 +139,11 @@ internal static class Ui
         };
         button.MouseExited += () => NHoverTipSet.Remove(button);
     }
+
+    /// <summary>
+    /// A Wiktionary sense label in the player's words ("with-dative" as "with dative").
+    /// </summary>
+    public static string TagName(string tag) => Text($"SPIRELINGO-TAG.{tag}", tag.Replace('-', ' '));
 
     public static string Escape(string text) => text.Replace("[", "[lb]");
 

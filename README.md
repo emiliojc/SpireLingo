@@ -72,6 +72,9 @@ The data files are generated once and committed; rebuild them after a game updat
    ```
    It prints how many of the game's words have an entry and the most frequent ones without one.
 
+To add Wiktionary's sense labels, examples and related words to the committed data without reading the game
+again, run `python tools/build_glossary.py --enrich-only --kaikki kaikki.org-dictionary-German.jsonl.gz`.
+
 Game-specific abbreviations and meanings ("TP" = HP, "Orb", "Zug" = turn) are set by hand in `GAME_TERMS`,
 `GAME_TERM_FORMS` and `GAME_SENSES` at the top of the script. After changing them, apply them to the committed
 files without a full rebuild: `python tools/build_glossary.py --game-terms-only`.
@@ -87,10 +90,10 @@ Done:
 1. Translation tooltips.
 2. Discovery mode: click any word on screen for its meaning, with an offline glossary built from the game's text.
 3. Saved words with states, the vocabulary screen, state underlines and spaced reviews.
+4. Usage tips and related words on each word's page.
 
 Next:
 
-4. Usage tips and related words on each word's page.
 5. Anki export of saved words.
 6. Other language pairs: choose the translation language (English today) and the game's language (German today), with a glossary for each pair.
 7. Publishing on the Steam Workshop.
