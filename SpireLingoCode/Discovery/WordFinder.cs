@@ -1,4 +1,6 @@
 using Godot;
+using MegaCrit.Sts2.Core.Nodes.Cards;
+using MegaCrit.Sts2.Core.Nodes.HoverTips;
 
 namespace SpireLingo.SpireLingoCode.Discovery;
 
@@ -54,29 +56,87 @@ internal static class WordFinder
         }
     }
 
+    /// <summary>
+    /// The word under a screen position, in the topmost label there. A label on top still hides the ones below
+    /// it (blank space on a card doesn't pick up text under the card), unless it is see-through at that point:
+    /// empty, faded out, or the point lies outside its text. Then the next label down is tried, so an empty
+    /// label stretched over the Ancient's dialogue no longer hides it.
+    /// </summary>
     public static FoundWord? At(Vector2 screenPoint, Node? skip)
     {
-        Control? top = null;
-        Vector2 topLocal = default;
-        (int layer, List<int> path)? topOrder = null;
+        var hits = new List<(Control label, Vector2 local, (int layer, List<int> path) order)>();
         foreach (var label in Labels)
         {
             if (!GodotObject.IsInstanceValid(label) || !label.IsVisibleInTree()) continue;
             var local = label.GetGlobalTransformWithCanvas().AffineInverse() * screenPoint;
             if (!new Rect2(Vector2.Zero, label.Size).HasPoint(local)) continue;
             if (DrawOrder(label, skip) is not { } order) continue;
-            if (topOrder != null && Compare(order, topOrder.Value) <= 0) continue;
-            top = label;
-            topLocal = local;
-            topOrder = order;
+            hits.Add((label, local, order));
         }
+        hits.Sort((a, b) => Compare(b.order, a.order));
 
-        return top switch
+        Node? surface = null;
+        foreach (var (label, local, _) in hits)
         {
-            RichTextLabel rich => InRichText(rich, topLocal),
-            Label label => InLabel(label, topLocal),
-            _ => null
-        };
+            // A card or tooltip is opaque: once the search is inside one, text outside it is covered.
+            if (surface != null && !surface.IsAncestorOf(label)) return null;
+            // Invisible text (a line that hasn't faded in yet) is neither read nor in the way.
+            if (IsTransparent(label)) continue;
+            var word = label switch
+            {
+                RichTextLabel rich => InRichText(rich, local),
+                Label plain => InLabel(plain, local),
+                _ => null
+            };
+            if (word != null) return word;
+            if (!SeeThrough(label, local)) return null;
+            surface ??= OpaqueSurface(label);
+        }
+        return null;
+    }
+
+    /// <summary>
+    /// The card or tooltip a label is part of, if any.
+    /// </summary>
+    private static Node? OpaqueSurface(Node label)
+    {
+        for (var node = label.GetParent(); node != null; node = node.GetParent())
+            if (node is NCard or NHoverTipSet) return node;
+        return null;
+    }
+
+    /// <summary>
+    /// Whether a label lets the one below show through at a point: it has no text, is faded out, or the point
+    /// is outside its text (beyond a rich text's content, or away from a plain label's characters).
+    /// </summary>
+    private static bool SeeThrough(Control label, Vector2 local)
+    {
+        if (string.IsNullOrWhiteSpace(TextOf(label)) || IsTransparent(label)) return true;
+        switch (label)
+        {
+            case RichTextLabel rich:
+                var content = rich.GetVisibleContentRect();
+                return !new Rect2(content.Position, new Vector2(content.Size.X, rich.GetContentHeight())).HasPoint(local);
+            case Label plain:
+                var count = plain.GetTotalCharacterCount();
+                if (count == 0) return true;
+                var text = plain.GetCharacterBounds(0);
+                for (var i = 1; i < count; i++) text = text.Merge(plain.GetCharacterBounds(i));
+                return !text.HasPoint(local);
+            default:
+                return false;
+        }
+    }
+
+    /// <summary>
+    /// Whether a label can't be seen because it or a parent is faded out (lines that haven't appeared yet).
+    /// </summary>
+    private static bool IsTransparent(Control label)
+    {
+        var alpha = 1f;
+        for (Node? node = label; node is CanvasItem item; node = node.GetParent())
+            alpha *= item.Modulate.A * item.SelfModulate.A;
+        return alpha < 0.05f;
     }
 
     /// <summary>
