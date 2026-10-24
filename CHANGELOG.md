@@ -3,6 +3,14 @@
 All notable changes to SpireLingo. Versions follow [Semantic Versioning](https://semver.org/); the version
 lives in `SpireLingo.json` and is copied into the DLL at build time.
 
+## 0.6.2 - 2026-10-24
+
+### Fixed
+- The glossary knows the game's own abbreviations: "TP" is HP (Trefferpunkte), "Orb" is the Defect's orb
+  instead of "Object Request Broker", and the settings' FPS, MSAA, Esc and the card FTL have meanings.
+- "Zug", "Block" and "Bug" show their game meaning first: a turn, the Block that protects you, and a bug in
+  the game.
+
 ## 0.6.1 - 2026-10-23
 
 ### Added

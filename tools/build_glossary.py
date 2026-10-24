@@ -41,6 +41,24 @@ PARTICLES = {"ab", "an", "auf", "aus", "bei", "dar", "ein", "fest", "fort", "fre
              "voran", "voraus", "vorbei", "weg", "weiter", "wieder", "zu", "zurück", "zusammen"}
 # Abbreviations in the game's text and the words they stand for ("Zweigschleim (kl.)", "max. TP").
 ABBREVIATIONS = {"kl": "klein", "mi": "mittel", "max": "maximal"}
+# Short words that mean something special in the game, where Wiktionary has nothing or the wrong thing
+# ("TP" is missing, "Orb" is read as "Object Request Broker"). These entries replace Wiktionary's.
+GAME_TERMS = {
+    "TP": {"pos": "noun", "plural": "TP", "senses": ["HP, hit points (short for Trefferpunkte)"]},
+    "Orb": {"pos": "noun", "gender": "m", "plural": "Orbs", "senses": ["orb (channelled by the Defect)"]},
+    "FPS": {"pos": "noun", "senses": ["FPS, frames per second (short for Bilder pro Sekunde)"]},
+    "MSAA": {"pos": "noun", "senses": ["MSAA, multisample anti-aliasing"]},
+    "ESC": {"pos": "noun", "senses": ["Esc, the Escape key"]},
+    "FTL": {"pos": "noun", "senses": ["FTL, faster than light"]},
+}
+# Spellings of the game terms in the text ("ORBS" in dialogue, "tP" after sentence-start lowercasing).
+GAME_TERM_FORMS = {"tp": "TP", "orb": "Orb", "orbs": "Orb", "fps": "FPS", "msaa": "MSAA", "esc": "ESC", "ftl": "FTL"}
+# The game's meaning of an ordinary word, shown before Wiktionary's senses ("in einem Zug" = in one turn).
+GAME_SENSES = {
+    "Zug": "turn (in a fight)",
+    "Block": "Block (protects you from damage)",
+    "Bug": "bug (an error in the game)",
+}
 SENTENCE_START = re.compile(r"(^|[.!?:]\s+)([A-ZÄÖÜ])")
 
 
@@ -418,7 +436,10 @@ def build(pck, kaikki_path, model_name):
         if full in glossary:
             forms[short] = [full]
 
-    coverage = sum(1 for w in surface_counts if known(w) or w.lower() in form_of or w.lower() in compounds)
+    add_game_terms(glossary, forms, sentences)
+
+    coverage = sum(1 for w in surface_counts if known(w) or w.lower() in form_of or w.lower() in compounds
+                   or w.lower() in GAME_TERM_FORMS)
     report = {
         "distinct_words": len(surface_counts),
         "covered": coverage,
@@ -429,6 +450,28 @@ def build(pck, kaikki_path, model_name):
         "separable_verbs": len(verbs_used),
     }
     return glossary, forms, compounds, sentences, report, surface_counts
+
+
+def add_game_terms(glossary, forms, sentences):
+    """Puts the game's own abbreviations and meanings in place of what Wiktionary and spaCy made of them."""
+    for lemma, entry in GAME_TERMS.items():
+        glossary[lemma] = [entry]
+    for word, lemma in GAME_TERM_FORMS.items():
+        replaced = forms.pop(word, [])
+        forms[word] = [lemma]
+        # Drop entries only reachable through the wrong reading ("Object Request Broker").
+        for wrong in replaced:
+            if wrong != lemma and wrong not in GAME_TERMS and not any(wrong in v for v in forms.values()):
+                glossary.pop(wrong, None)
+    for tokens in sentences.values():
+        for token in tokens:
+            if token[0] in GAME_TERM_FORMS:
+                token[1] = GAME_TERM_FORMS[token[0]]
+                token[2] = GAME_TERMS[token[1]]["pos"]
+    for lemma, sense in GAME_SENSES.items():
+        nouns = [e for e in glossary.get(lemma, []) if e["pos"] == "noun"]
+        if nouns and not any(sense in e["senses"] for e in nouns):
+            nouns[0]["senses"] = [sense] + nouns[0]["senses"][: MAX_SENSES - 1]
 
 
 def split_compound(word, known, depth=0):
@@ -464,10 +507,22 @@ def split_compound(word, known, depth=0):
 
 def main():
     parser = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
-    parser.add_argument("--pck", required=True, help="path to SlayTheSpire2.pck")
-    parser.add_argument("--kaikki", required=True, help="kaikki.org German extract (.jsonl or .jsonl.gz)")
+    parser.add_argument("--pck", help="path to SlayTheSpire2.pck")
+    parser.add_argument("--kaikki", help="kaikki.org German extract (.jsonl or .jsonl.gz)")
     parser.add_argument("--model", default="de_core_news_md", help="spaCy German model")
+    parser.add_argument("--game-terms-only", action="store_true",
+                        help="only apply GAME_TERMS and GAME_SENSES to the existing output, without rebuilding")
     args = parser.parse_args()
+
+    if args.game_terms_only:
+        glossary_data = json.loads((OUT_DIR / "glossary_deu_eng.json").read_text(encoding="utf-8"))
+        sentence_data = json.loads((OUT_DIR / "sentences_deu.json").read_text(encoding="utf-8"))
+        add_game_terms(glossary_data["entries"], glossary_data["forms"], sentence_data["lines"])
+        write(OUT_DIR / "glossary_deu_eng.json", glossary_data)
+        write(OUT_DIR / "sentences_deu.json", sentence_data)
+        return
+    if not (args.pck and args.kaikki):
+        parser.error("--pck and --kaikki are required unless --game-terms-only is given")
 
     glossary, forms, compounds, sentences, report, counts = build(args.pck, args.kaikki, args.model)
     OUT_DIR.mkdir(parents=True, exist_ok=True)
