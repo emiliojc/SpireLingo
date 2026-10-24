@@ -72,6 +72,10 @@ The data files are generated once and committed; rebuild them after a game updat
    ```
    It prints how many of the game's words have an entry and the most frequent ones without one.
 
+Game-specific abbreviations and meanings ("TP" = HP, "Orb", "Zug" = turn) are set by hand in `GAME_TERMS`,
+`GAME_TERM_FORMS` and `GAME_SENSES` at the top of the script. After changing them, apply them to the committed
+files without a full rebuild: `python tools/build_glossary.py --game-terms-only`.
+
 ## Credits
 
 Word meanings are from [English Wiktionary](https://en.wiktionary.org/), extracted by [kaikki.org](https://kaikki.org/) ([Wiktextract](https://github.com/tatuylonen/wiktextract)), and licensed under [CC BY-SA 4.0](https://creativecommons.org/licenses/by-sa/4.0/). See `NOTICE`.
