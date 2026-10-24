@@ -187,9 +187,17 @@ internal sealed class ReviewPanel
 
     private void End()
     {
+        Hide();
+        _onEnd();
+    }
+
+    /// <summary>
+    /// Leaves the review without going back to the list, for when the whole screen closes or reopens.
+    /// </summary>
+    public void Hide()
+    {
         _root.Visible = false;
         WordStore.Flush();
-        _onEnd();
     }
 
     /// <summary>

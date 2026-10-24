@@ -3,6 +3,12 @@
 All notable changes to SpireLingo. Versions follow [Semantic Versioning](https://semver.org/); the version
 lives in `SpireLingo.json` and is copied into the DLL at build time.
 
+## 0.7.1 - 2026-10-24
+
+### Fixed
+- The vocabulary screen always opens on the word list. A review left open when the screen closed no longer
+  comes back on top of the list and takes the keys meant for the search.
+
 ## 0.7.0 - 2026-10-24
 
 ### Added
