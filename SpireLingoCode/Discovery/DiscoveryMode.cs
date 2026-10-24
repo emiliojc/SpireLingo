@@ -417,16 +417,26 @@ public partial class DiscoveryMode : CanvasLayer
         if (first?.Plural is { } plural) grammar.Add($"{Text("SPIRELINGO-DISCOVERY.plural")} {Escape(plural)}");
         if (grammar.Count > 0) info.Add($"[color=#b0b0b0]{string.Join(" · ", grammar)}[/color]");
 
-        var senses = chosen.SelectMany(e => e.Senses).Distinct().Take(5).ToList();
-        for (var n = 0; n < senses.Count; n++) info.Add($"{n + 1}. {Escape(senses[n])}");
+        // Only the meaning that fits this sentence; the others, usage tips and related words are on the word's
+        // page in the vocabulary screen.
+        var senseCount = chosen.SelectMany(e => e.Senses).Distinct().Count();
+        var english = Context(_match) is { } lineRef ? SentenceMatcher.SampleLine(lineRef, target: true) : null;
+        if (Glossary.FittingSense(chosen, english) is { } fit)
+        {
+            var labels = fit.entry.TagsOf(fit.sense).Select(TagName).ToList();
+            info.Add($"[b][color=#{HighlightColor.ToHtml(false)}]{Escape(fit.entry.Senses[fit.sense])}[/color][/b]" +
+                     (labels.Count > 0 ? $" [color=#b0b0b0]({Escape(string.Join(", ", labels))})[/color]" : ""));
+            if (senseCount > 1)
+                info.Add($"[color=#b0b0b0]{Escape(Text("SPIRELINGO-DISCOVERY.more_meanings").Replace("{Count}", (senseCount - 1).ToString()))}[/color]");
+        }
 
-        if (senses.Count == 0 && Glossary.CompoundParts(word.Word) is { } parts)
+        if (senseCount == 0 && Glossary.CompoundParts(word.Word) is { } parts)
         {
             var explained = parts.Select(part => Glossary.Lookup(part).FirstOrDefault() is { Senses.Length: > 0 } e
                 ? $"{Escape(part)} ({Escape(e.Senses[0])})" : Escape(part));
             info.Add($"{Text("SPIRELINGO-DISCOVERY.compound")} {string.Join(" + ", explained)}");
         }
-        else if (senses.Count == 0 && Glossary.IsLoaded)
+        else if (senseCount == 0 && Glossary.IsLoaded)
         {
             info.Add($"[i]{Text("SPIRELINGO-DISCOVERY.not_in_glossary")}[/i]");
         }

@@ -166,6 +166,17 @@ internal static class WordStore
     }
 
     /// <summary>
+    /// The word's record, made if the player hasn't met it yet (a word opened from another word's page).
+    /// </summary>
+    public static WordRecord GetOrAdd(string lemma)
+    {
+        if (Get(lemma) is { } record) return record;
+        record = Touch(lemma, null);
+        MarkDirty();
+        return record;
+    }
+
+    /// <summary>
     /// A state the player chose in the popup.
     /// </summary>
     public static void Choose(WordRecord record, WordState state)

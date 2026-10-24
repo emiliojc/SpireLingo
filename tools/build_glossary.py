@@ -24,6 +24,17 @@ REPO = Path(__file__).resolve().parent.parent
 OUT_DIR = REPO / "SpireLingo" / "data"
 
 MAX_SENSES = 6
+MAX_EXAMPLES = 3
+MAX_RELATED = 6
+# Sense labels worth showing a learner, from Wiktionary's tags (others, like "error-unknown-tag", are dropped).
+USEFUL_TAGS = {"colloquial", "informal", "formal", "figuratively", "transitive", "intransitive", "reflexive",
+               "impersonal", "dated", "archaic", "obsolete", "rare", "regional", "slang", "vulgar", "derogatory",
+               "humorous", "literary", "poetic", "with-dative", "with-accusative", "with-genitive", "Austria",
+               "Switzerland", "Southern-Germany", "Northern-Germany", "plural-only", "singular-only", "auxiliary",
+               "separable", "inseparable"}
+# Wiktionary's lists of words that belong with a word, under the names the mod uses.
+RELATIONS = {"synonyms": "synonyms", "antonyms": "antonyms", "derived": "derived", "related": "related",
+             "hyponyms": "derived", "coordinate_terms": "related"}
 MAX_FORMS = 6
 WORD = re.compile(r"[^\W\d_]+(?:[-'’][^\W\d_]+)*")
 TAG = re.compile(r"\[[^\[\]]*\]")
@@ -200,7 +211,7 @@ def load_kaikki(path, wanted, match_forms=True):
             relevant = relevant or (item.get("pos") == "verb" and any(word.startswith(p) for p in PARTICLES))
         if not relevant:
             continue
-        senses, lemma_targets = [], set()
+        senses, tags, lemma_targets = [], [], set()
         for sense in item.get("senses", []):
             targets = sense.get("form_of") or sense.get("alt_of")
             if targets:
@@ -209,12 +220,16 @@ def load_kaikki(path, wanted, match_forms=True):
             gloss = (sense.get("glosses") or [""])[0].strip()
             if gloss and gloss not in senses:
                 senses.append(gloss)
+                tags.append(sorted(set(sense.get("tags", [])) & USEFUL_TAGS))
         for target in lemma_targets:
             form_of[word.lower()].add(target)
         if not senses:
             continue
         pos = POS.get(item.get("pos", ""), item.get("pos", ""))
         entry = {"pos": pos, "senses": senses[:MAX_SENSES]}
+        tags = tags[:MAX_SENSES]
+        if any(tags):
+            entry["tags"] = tags
         if pos == "noun":
             gender = gender_of(item)
             if gender:
@@ -227,9 +242,17 @@ def load_kaikki(path, wanted, match_forms=True):
             form = x.get("form", "")
             if form and form != word and WORD.fullmatch(form):
                 form_of[form.lower()].add(word)
-        example = first_example(item)
-        if example:
-            entry["example"] = example
+        examples = examples_of(item)
+        if examples:
+            entry["example"] = examples[0]
+            if len(examples) > 1:
+                entry["examples"] = examples
+        related = related_of(item)
+        if related:
+            entry["related"] = related
+        etymology = short_etymology(item)
+        if etymology:
+            entry["etymology"] = etymology
         entries[word].append(entry)
     return entries, form_of
 
@@ -247,13 +270,54 @@ def gender_of(item):
     return "".join(sorted(tags, key="mfn".index)) or None
 
 
-def first_example(item):
+def examples_of(item):
+    """Up to MAX_EXAMPLES short example sentences with their English, at most one per sense."""
+    examples = []
     for sense in item.get("senses", []):
         for example in sense.get("examples", []):
             text, english = example.get("text", ""), example.get("english") or example.get("translation")
             if text and english and len(text) < 120:
-                return {"de": text, "en": english}
-    return None
+                examples.append({"de": text, "en": english})
+                break
+        if len(examples) == MAX_EXAMPLES:
+            break
+    return examples
+
+
+def related_of(item):
+    """Synonyms, antonyms, derived and related words from the entry and its senses, single words only, in
+    Wiktionary's order. They are ranked by how much the game uses them later, in rank_related."""
+    related = defaultdict(list)
+    sources = [item] + item.get("senses", [])
+    for source in sources:
+        for key, kind in RELATIONS.items():
+            for x in source.get(key, []):
+                word = x.get("word", "").strip()
+                if word and word != item["word"] and WORD.fullmatch(word) and word not in related[kind]:
+                    related[kind].append(word)
+    return {kind: words for kind, words in related.items() if words}
+
+
+def short_etymology(item):
+    """How the word is built, when the etymology's first sentence says so briefly ("From er- + halten.").
+    Older forms and other languages are left out; they help a learner less than the parts do."""
+    text = (item.get("etymology_text") or "").strip()
+    first = re.split(r"(?<=[.;])\s", text, maxsplit=1)[0]
+    return first if "+" in first and len(first) <= 120 else None
+
+
+def rank_related(glossary, sentences):
+    """Keeps the related words a player is likely to meet: those the game uses come first, most used first,
+    then the rest in Wiktionary's order, MAX_RELATED of each kind."""
+    frequency = Counter(lemma for tokens in sentences.values() for lemma in {tok[1] for tok in tokens})
+    for entries in glossary.values():
+        for entry in entries:
+            related = entry.get("related")
+            if not related:
+                continue
+            for kind, words in list(related.items()):
+                ranked = sorted(words, key=lambda w: (-frequency.get(w, 0), words.index(w)))[:MAX_RELATED]
+                related[kind] = ranked
 
 
 # ---------------------------------------------------------------- analysis
@@ -437,6 +501,7 @@ def build(pck, kaikki_path, model_name):
             forms[short] = [full]
 
     add_game_terms(glossary, forms, sentences)
+    rank_related(glossary, sentences)
 
     coverage = sum(1 for w in surface_counts if known(w) or w.lower() in form_of or w.lower() in compounds
                    or w.lower() in GAME_TERM_FORMS)
@@ -472,6 +537,35 @@ def add_game_terms(glossary, forms, sentences):
         nouns = [e for e in glossary.get(lemma, []) if e["pos"] == "noun"]
         if nouns and not any(sense in e["senses"] for e in nouns):
             nouns[0]["senses"] = [sense] + nouns[0]["senses"][: MAX_SENSES - 1]
+            if "tags" in nouns[0]:
+                nouns[0]["tags"] = [[]] + nouns[0]["tags"][: MAX_SENSES - 1]
+
+
+def enrich(glossary, sentences, kaikki_path):
+    """Adds sense tags, examples, related words and etymologies from Wiktionary to the existing glossary,
+    without reparsing the game's text. Entries are matched by part of speech and shared senses."""
+    fresh, _ = load_kaikki(kaikki_path, set(glossary), match_forms=False)
+    fields = ("examples", "related", "etymology")
+    for lemma, entries in glossary.items():
+        candidates = fresh.get(lemma, [])
+        for entry in entries:
+            match = max((c for c in candidates if c["pos"] == entry["pos"]),
+                        key=lambda c: len(set(c["senses"]) & set(entry["senses"])), default=None)
+            if match is None or not set(match["senses"]) & set(entry["senses"]):
+                continue
+            for field in fields:
+                entry.pop(field, None)
+                if field in match:
+                    entry[field] = match[field]
+            if "example" in match:
+                entry["example"] = match["example"]
+            # Tags follow the entry's own senses, which may include a game sense Wiktionary lacks.
+            tag_of = dict(zip(match["senses"], match.get("tags", [])))
+            tags = [tag_of.get(sense, []) for sense in entry["senses"]]
+            entry.pop("tags", None)
+            if any(tags):
+                entry["tags"] = tags
+    rank_related(glossary, sentences)
 
 
 def split_compound(word, known, depth=0):
@@ -512,7 +606,19 @@ def main():
     parser.add_argument("--model", default="de_core_news_md", help="spaCy German model")
     parser.add_argument("--game-terms-only", action="store_true",
                         help="only apply GAME_TERMS and GAME_SENSES to the existing output, without rebuilding")
+    parser.add_argument("--enrich-only", action="store_true",
+                        help="only add tags, examples, related words and etymologies from --kaikki to the existing "
+                             "output, without reading the game or parsing")
     args = parser.parse_args()
+
+    if args.enrich_only:
+        if not args.kaikki:
+            parser.error("--enrich-only needs --kaikki")
+        glossary_data = json.loads((OUT_DIR / "glossary_deu_eng.json").read_text(encoding="utf-8"))
+        sentence_data = json.loads((OUT_DIR / "sentences_deu.json").read_text(encoding="utf-8"))
+        enrich(glossary_data["entries"], sentence_data["lines"], args.kaikki)
+        write(OUT_DIR / "glossary_deu_eng.json", glossary_data)
+        return
 
     if args.game_terms_only:
         glossary_data = json.loads((OUT_DIR / "glossary_deu_eng.json").read_text(encoding="utf-8"))

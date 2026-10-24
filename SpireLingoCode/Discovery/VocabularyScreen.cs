@@ -32,6 +32,13 @@ internal sealed class VocabularyScreen
     // Small words every sentence has; they are left out of Worth learning.
     private static readonly HashSet<string> FunctionPos = ["det", "pron", "conj", "prep", "particle", "num", "intj", "contraction"];
 
+    // Sense labels that come with a usage tip (SPIRELINGO-TIP.<label>).
+    private static readonly HashSet<string> TipTags =
+    [
+        "with-dative", "with-accusative", "with-genitive", "reflexive", "impersonal", "colloquial", "formal", "plural-only",
+        "singular-only"
+    ];
+
     /// <summary>
     /// Words met or looked up but not saved yet, that carry meaning and that the game uses more than a couple of
     /// times: the ones most worth saving next.
@@ -173,6 +180,10 @@ internal sealed class VocabularyScreen
         }
         page.AddChild(_chips);
         _pageBody = MakeText(Colors.White, 600, 19);
+        // Related words are links to their own pages.
+        _pageBody.MouseFilter = Control.MouseFilterEnum.Pass;
+        _pageBody.MetaUnderlined = false;
+        _pageBody.MetaClicked += meta => ShowWord(meta.AsString());
         page.AddChild(_pageBody);
         _pageScroll.AddChild(page);
         columns.AddChild(_pageScroll);
@@ -336,10 +347,14 @@ internal sealed class VocabularyScreen
 
     private void Choose(WordState state)
     {
-        if (_shown == null || WordStore.Get(_shown) is not { } record) return;
+        if (_shown == null) return;
+        // A word opened from a related-words link may not be saved yet.
+        var lemma = _shown;
+        var record = WordStore.GetOrAdd(lemma);
         WordStore.Choose(record, record.State == state ? WordState.LookedUp : state);
-        ShowWord(_shown);
+        // Stay on the word even when the open tab doesn't list it.
         Refresh();
+        ShowWord(lemma);
     }
 
     /// <summary>
@@ -367,23 +382,10 @@ internal sealed class VocabularyScreen
                            (grammar.Count > 0 ? $"  [font_size=18][color=#{MutedColor.ToHtml(false)}]{string.Join(" · ", grammar)}[/color][/font_size]" : "");
 
         var body = new List<string>();
-        var senses = entries.SelectMany(e => e.Senses).Distinct().ToList();
-        for (var n = 0; n < senses.Count; n++) body.Add($"{n + 1}. {Escape(senses[n])}");
-        if (senses.Count == 0 && Glossary.CompoundParts(lemma) is { } parts)
-        {
-            body.Add($"{Text("SPIRELINGO-DISCOVERY.compound")} " + string.Join(" + ", parts.Select(p =>
-                Glossary.Lookup(p).FirstOrDefault() is { Senses.Length: > 0 } e ? $"{Escape(p)} ({Escape(e.Senses[0])})" : Escape(p))));
-        }
-        if (Glossary.SeparablePrefix(lemma) is { } prefix)
-            body.Add($"[color=#{MutedColor.ToHtml(false)}]{Escape(Text("SPIRELINGO-DISCOVERY.separable").Replace("{Particle}", prefix))}[/color]");
-
-        if (entries.FirstOrDefault(e => e.ExampleDe != null) is { } example)
-        {
-            body.Add("");
-            body.Add(Heading("SPIRELINGO-VOCAB.example"));
-            body.Add($"[i]{Escape(example.ExampleDe!)}[/i]");
-            body.Add($"[color=#{MutedColor.ToHtml(false)}]{Escape(example.ExampleEn ?? "")}[/color]");
-        }
+        Meanings(body, entries);
+        Usage(body, lemma, entries);
+        Examples(body, entries);
+        RelatedWords(body, lemma, entries);
 
         var sentences = SeenIn(lemma, record).ToList();
         if (sentences.Count > 0)
@@ -406,11 +408,112 @@ internal sealed class VocabularyScreen
                 body.Add($"[color=#{MutedColor.ToHtml(false)}]{date.ToLocalTime():g}[/color]  {StateName(state)}");
         }
 
-        body.Add("");
-        body.Add($"[color=#{MutedColor.ToHtml(false)}][i]{Escape(Text("SPIRELINGO-VOCAB.tips_later"))}[/i][/color]");
-
         _pageBody.Text = string.Join("\n", body);
         _pageScroll.ScrollVertical = 0;
+    }
+
+    /// <summary>
+    /// Every meaning, numbered, with Wiktionary's labels ("colloquial", "with dative") and, when the word is more
+    /// than one part of speech, which one each meaning belongs to.
+    /// </summary>
+    private static void Meanings(List<string> body, List<Glossary.Entry> entries)
+    {
+        var mixed = entries.Select(e => e.Pos).Distinct().Count() > 1;
+        var shown = new HashSet<string>();
+        var n = 0;
+        foreach (var entry in entries)
+        {
+            for (var i = 0; i < entry.Senses.Length; i++)
+            {
+                if (!shown.Add(entry.Senses[i])) continue;
+                var labels = entry.TagsOf(i).Select(TagName).ToList();
+                if (mixed && i == 0) labels.Insert(0, Text($"SPIRELINGO-DISCOVERY.pos.{entry.Pos}", entry.Pos));
+                body.Add($"{++n}. {Escape(entry.Senses[i])}" +
+                         (labels.Count > 0 ? $" [color=#{MutedColor.ToHtml(false)}]({Escape(string.Join(", ", labels))})[/color]" : ""));
+            }
+        }
+    }
+
+    /// <summary>
+    /// Usage tips: the forms to learn with the word, how its grammar labels change a sentence, the words the
+    /// game uses it with, and the parts it is built from.
+    /// </summary>
+    private static void Usage(List<string> body, string lemma, List<Glossary.Entry> entries)
+    {
+        var tips = new List<string>();
+        var first = entries.FirstOrDefault();
+        if (first is { Pos: "noun", Gender: { Length: 1 } gender })
+        {
+            var plural = first.Plural is { } p ? Text("SPIRELINGO-TIP.noun_plural").Replace("{Plural}", "die " + p) : "";
+            tips.Add(Text("SPIRELINGO-TIP.noun").Replace("{Word}", Article(gender) + lemma).Replace("{PluralPart}", plural));
+        }
+        if (Glossary.SeparablePrefix(lemma) is { } prefix)
+            tips.Add(Text("SPIRELINGO-DISCOVERY.separable").Replace("{Particle}", prefix));
+        foreach (var tag in entries.SelectMany(e => e.Tags).SelectMany(t => t).Distinct().Where(TipTags.Contains))
+            tips.Add(Text($"SPIRELINGO-TIP.{tag}"));
+        var lines = tips.Select(Escape).ToList();
+
+        var usedWith = Glossary.UsedWith(lemma);
+        if (usedWith.Count > 0)
+            lines.Add($"{Escape(Text("SPIRELINGO-VOCAB.used_with"))} " +
+                      string.Join(", ", usedWith.Select(u => $"{WordLink(u.lemma)} [color=#{MutedColor.ToHtml(false)}]({u.lines})[/color]")));
+
+        if (Glossary.CompoundParts(lemma) is { } parts)
+            lines.Add($"{Escape(Text("SPIRELINGO-DISCOVERY.compound"))} " + string.Join(" + ", parts.Select(p =>
+                Glossary.Lookup(p).FirstOrDefault() is { Senses.Length: > 0 } e ? $"{WordLink(p)} ({Escape(e.Senses[0])})" : Escape(p))));
+        else if (entries.Select(e => e.Etymology).FirstOrDefault(e => e != null) is { } etymology)
+            lines.Add($"[color=#{MutedColor.ToHtml(false)}]{Escape(etymology)}[/color]");
+
+        if (lines.Count == 0) return;
+        body.Add("");
+        body.Add(Heading("SPIRELINGO-VOCAB.usage"));
+        body.AddRange(lines.Select(l => "• " + l));
+    }
+
+    private static void Examples(List<string> body, List<Glossary.Entry> entries)
+    {
+        var examples = entries.SelectMany(e => e.Examples).DistinctBy(x => x.De).Take(3).ToList();
+        if (examples.Count == 0) return;
+        body.Add("");
+        body.Add(Heading("SPIRELINGO-VOCAB.example"));
+        foreach (var (de, en) in examples)
+            body.Add($"[i]{Escape(de)}[/i]\n[color=#{MutedColor.ToHtml(false)}]{Escape(en)}[/color]");
+    }
+
+    /// <summary>
+    /// Synonyms, opposites and the word's family (derived and related words, and the game's own compounds), the
+    /// ones the game uses first. Words with a page are links.
+    /// </summary>
+    private static void RelatedWords(List<string> body, string lemma, List<Glossary.Entry> entries)
+    {
+        string[] Of(params string[] kinds) =>
+            entries.SelectMany(e => kinds.SelectMany(k => e.Related.GetValueOrDefault(k) ?? [])).Distinct().ToArray();
+
+        var family = Of("derived", "related").Concat(Glossary.CompoundsWith(lemma))
+            .DistinctBy(w => w.ToLowerInvariant()).Take(10).ToList();
+        var rows = new List<(string key, IReadOnlyList<string> words)>
+        {
+            ("SPIRELINGO-VOCAB.synonyms", Of("synonyms")),
+            ("SPIRELINGO-VOCAB.antonyms", Of("antonyms")),
+            ("SPIRELINGO-VOCAB.family", family)
+        };
+        rows.RemoveAll(r => r.words.Count == 0);
+        if (rows.Count == 0) return;
+        body.Add("");
+        body.Add(Heading("SPIRELINGO-VOCAB.related"));
+        foreach (var (key, words) in rows)
+            body.Add($"• {Escape(Text(key))} {string.Join(", ", words.Select(WordLink))}");
+    }
+
+    /// <summary>
+    /// A word that opens its own page when clicked, if the glossary has one; plain text otherwise.
+    /// </summary>
+    private static string WordLink(string word)
+    {
+        var lemma = Glossary.EntriesFor(word).Count > 0 ? word : Glossary.Lookup(word).FirstOrDefault()?.Lemma;
+        return lemma == null
+            ? Escape(word)
+            : $"[url={Escape(lemma)}][color=#{LinkColor.ToHtml(false)}]{Escape(word)}[/color][/url]";
     }
 
     private static string Heading(string key) => $"[b][color=#{HighlightColor.ToHtml(false)}]{Escape(Text(key))}[/color][/b]";

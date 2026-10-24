@@ -3,6 +3,23 @@
 All notable changes to SpireLingo. Versions follow [Semantic Versioning](https://semver.org/); the version
 lives in `SpireLingo.json` and is copied into the DLL at build time.
 
+## 0.8.0 - 2026-10-24
+
+### Changed
+- The discovery popup is shorter: it shows only the meaning that fits the sentence, picked by matching the
+  meanings against the sentence's English line ("Zug" in "in einem Zug" is "turn"), with any labels such as
+  "colloquial" and a note of how many more meanings the vocabulary screen has.
+
+### Added
+- The word page in the vocabulary screen has every meaning with its labels, usage tips (learn a noun with its
+  article and plural, separable verbs, dative/accusative/genitive, reflexive and impersonal use, colloquial
+  or formal meanings), the words the game most often uses it with, its parts, up to three examples, and
+  related words: similar words, opposites and the word family, including the game's own compounds.
+- Related words are links: clicking one opens its page, where it can be saved with the state buttons.
+- The glossary carries Wiktionary's sense labels, more examples, related words and short word-part
+  etymologies. `tools/build_glossary.py --enrich-only --kaikki ...` adds them to the existing data without
+  reading the game again.
+
 ## 0.7.1 - 2026-10-24
 
 ### Fixed

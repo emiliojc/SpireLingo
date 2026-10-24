@@ -11,7 +11,31 @@ namespace SpireLingo.SpireLingoCode.Discovery;
 /// </summary>
 internal static class Glossary
 {
-    public sealed record Entry(string Lemma, string Pos, string? Gender, string? Plural, string[] Senses, string? ExampleDe, string? ExampleEn);
+    public sealed record Entry(string Lemma, string Pos, string? Gender, string? Plural, string[] Senses, string? ExampleDe, string? ExampleEn)
+    {
+        /// <summary>
+        /// Wiktionary's labels per sense ("colloquial", "with-dative"), in the order of <see cref="Senses"/>.
+        /// </summary>
+        public string[][] Tags { get; init; } = [];
+
+        public (string De, string En)[] Examples { get; init; } = [];
+
+        /// <summary>
+        /// Words that belong with this one, by kind (synonyms, antonyms, derived, related), the game's own first.
+        /// </summary>
+        public IReadOnlyDictionary<string, string[]> Related { get; init; } = new Dictionary<string, string[]>();
+
+        /// <summary>
+        /// How the word is built ("From er- + halten."), when Wiktionary says so briefly.
+        /// </summary>
+        public string? Etymology { get; init; }
+
+        public string[] TagsOf(int sense) => sense < Tags.Length ? Tags[sense] : [];
+    }
+
+    // Parts of speech that carry a sentence's meaning, for words used together.
+    private static readonly HashSet<string> ContentPos = ["noun", "verb", "adj", "adv"];
+    private static readonly HashSet<string> Auxiliaries = ["sein", "haben", "werden"];
 
     /// <summary>
     /// A word of a game text line: its base form, part of speech, and the word it belongs with, if any.
@@ -58,6 +82,7 @@ internal static class Glossary
         _lines = [];
         _linesByLemma = null;
         _separable = null;
+        _compoundsByPart = null;
 
         var glossaryPath = $"res://SpireLingo/data/glossary_{from}_{to}.json";
         var sentencesPath = $"res://SpireLingo/data/sentences_{from}.json";
@@ -142,6 +167,71 @@ internal static class Glossary
     /// How many lines of the game's text use a base form.
     /// </summary>
     public static int Frequency(string lemma) => LinesWith(lemma).Count;
+
+    /// <summary>
+    /// The content words the game uses most often in the same lines as a base form ("Schaden" with "zufügen"),
+    /// with how many lines they share.
+    /// </summary>
+    public static List<(string lemma, int lines)> UsedWith(string lemma, int count = 5)
+    {
+        var together = new Dictionary<string, int>();
+        foreach (var line in LinesWith(lemma))
+        foreach (var other in _lines[line].Where(t => ContentPos.Contains(t.Pos)).Select(t => t.Lemma).Distinct())
+            if (other != lemma && !Auxiliaries.Contains(other) && _entries.ContainsKey(other))
+                together[other] = together.GetValueOrDefault(other) + 1;
+        return together.Where(p => p.Value >= 2).OrderByDescending(p => p.Value).ThenBy(p => p.Key).Take(count)
+            .Select(p => (p.Key, p.Value)).ToList();
+    }
+
+    /// <summary>
+    /// Game words built from a base form ("Giftschaden" from "Schaden"), as the game writes them.
+    /// </summary>
+    public static List<string> CompoundsWith(string lemma, int count = 8)
+    {
+        _compoundsByPart ??= _compounds
+            .SelectMany(c => c.Value.Distinct().Select(part => (part, word: c.Key)))
+            .GroupBy(p => p.part).ToDictionary(g => g.Key, g => g.Select(p => p.word).ToList());
+        return (_compoundsByPart.GetValueOrDefault(lemma) ?? []).OrderBy(w => w.Length).Take(count)
+            // Compounds are stored lowercase; one ending in a noun is a noun and written capitalised.
+            .Select(w => _compounds[w][^1] is { Length: > 0 } head && char.IsUpper(head[0]) ? Capitalize(w) : w)
+            .ToList();
+    }
+
+    private static Dictionary<string, List<string>>? _compoundsByPart;
+
+    /// <summary>
+    /// The sense of the entries that fits a sentence, judged by which sense shares a word with the sentence's
+    /// target-language line ("Zug" in "Spiele 3 Karten in einem Zug" is "turn", because the English line says
+    /// "turn"). The first sense when none does or there is no line.
+    /// </summary>
+    public static (Entry entry, int sense)? FittingSense(IReadOnlyList<Entry> entries, string? targetLine)
+    {
+        if (entries.Count == 0 || entries.All(e => e.Senses.Length == 0)) return null;
+        var first = entries.First(e => e.Senses.Length > 0);
+        if (string.IsNullOrWhiteSpace(targetLine)) return (first, 0);
+        var lineWords = SenseWords(targetLine).ToHashSet();
+        foreach (var entry in entries)
+            for (var i = 0; i < entry.Senses.Length; i++)
+                if (SenseWords(SenseCore(entry.Senses[i])).Any(lineWords.Contains)) return (entry, i);
+        return (first, 0);
+    }
+
+    // English words cut to a rough stem ("turns" and "turn" both "turn", "damages" and "damage" both "damag"),
+    // so forms of a word match.
+    private static IEnumerable<string> SenseWords(string text) =>
+        Word.Matches(text.ToLowerInvariant()).Select(m => m.Value).Where(w => w.Length >= 3 && !EnglishStopWords.Contains(w))
+            .Select(w => w.Length > 3 && w.EndsWith('s') ? w[..^1] : w)
+            .Select(w => w.Length > 5 ? w[..5] : w);
+
+    // A sense without its explanation in brackets: "turn (in a fight)" is about "turn", not "fight".
+    private static string SenseCore(string sense) => Regex.Replace(sense, @"\([^)]*\)", "");
+
+    private static readonly HashSet<string> EnglishStopWords =
+    [
+        "the", "and", "for", "with", "from", "that", "this", "into", "onto", "your", "you", "are", "was", "one", "its",
+        "their", "them", "who", "which", "what", "when", "where", "something", "someone", "somebody", "thing", "things",
+        "used", "very", "more", "less", "not", "any", "all", "out", "off", "over", "under", "than", "then", "also"
+    ];
 
     /// <summary>
     /// The surfaces in a line that belong to a base form (both halves of a separable verb, every inflection).
@@ -234,13 +324,29 @@ internal static class Glossary
             var list = new List<Entry>();
             foreach (var e in lemma.Value.EnumerateArray())
             {
+                string? exampleDe = null, exampleEn = null;
+                if (e.TryGetProperty("example", out var example))
+                {
+                    exampleDe = Str(example, "de");
+                    exampleEn = Str(example, "en");
+                }
                 list.Add(new Entry(lemma.Name,
                     Str(e, "pos") ?? "",
                     Str(e, "gender"),
                     Str(e, "plural"),
                     e.TryGetProperty("senses", out var senses) ? senses.EnumerateArray().Select(s => s.GetString() ?? "").ToArray() : [],
-                    e.TryGetProperty("example", out var ex) ? Str(ex, "de") : null,
-                    e.TryGetProperty("example", out var ex2) ? Str(ex2, "en") : null));
+                    exampleDe,
+                    exampleEn)
+                {
+                    Tags = e.TryGetProperty("tags", out var tags)
+                        ? tags.EnumerateArray().Select(t => t.EnumerateArray().Select(x => x.GetString() ?? "").ToArray()).ToArray()
+                        : [],
+                    Examples = e.TryGetProperty("examples", out var examples)
+                        ? examples.EnumerateArray().Select(x => (Str(x, "de") ?? "", Str(x, "en") ?? "")).Where(x => x.Item1.Length > 0).ToArray()
+                        : exampleDe != null ? [(exampleDe, exampleEn ?? "")] : [],
+                    Related = Map(e, "related"),
+                    Etymology = Str(e, "etymology")
+                });
             }
             _entries[lemma.Name] = list;
             var lower = lemma.Name.ToLowerInvariant();
