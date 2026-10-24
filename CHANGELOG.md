@@ -3,6 +3,20 @@
 All notable changes to SpireLingo. Versions follow [Semantic Versioning](https://semver.org/); the version
 lives in `SpireLingo.json` and is copied into the DLL at build time.
 
+## 0.7.0 - 2026-10-24
+
+### Added
+- Reviews: a "Review" button on the vocabulary screen goes through your due Learning and Recognised words (up to
+  20 at a time). Each card shows a game sentence you met the word in with the word marked; "Show answer" (Space)
+  reveals its meanings, the sentence in English and an example, then "Knew it" (1) or "Didn't" (2). A new word
+  comes back at once, then after 1, 3, 7 and 21 days: passing the 7-day review makes it Recognised, passing the
+  21-day one makes it Known. "Didn't" brings it back tomorrow, and a Recognised word goes back to Learning.
+- A Learning word you read 8 times in discovery mode without looking it up becomes Recognised on its own.
+- A "Worth learning" tab lists words you met or looked up but haven't saved, ordered by how often the game uses
+  them, leaving out small words like der, und and in.
+- From the third look-up of a word you haven't saved, the popup's counter suggests saving it.
+- The word page shows when the word is next reviewed.
+
 ## 0.6.2 - 2026-10-24
 
 ### Fixed

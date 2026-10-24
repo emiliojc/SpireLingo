@@ -5,9 +5,10 @@ using static SpireLingo.SpireLingoCode.Discovery.Ui;
 namespace SpireLingo.SpireLingoCode.Discovery;
 
 /// <summary>
-/// The player's saved words: a list with an All tab and a tab per state, search and sorting, and a page for the chosen word with all
-/// its meanings, the game sentences it appears in, and its history. Built from plain Godot controls on the
-/// discovery layer; while it is open it takes every key (typing goes to the search) and covers the game.
+/// The player's saved words: a list with an All tab, a Worth learning tab and a tab per state, search and
+/// sorting, a page for the chosen word with all its meanings, the game sentences it appears in and its history,
+/// and reviews of the words that are due. Built from plain Godot controls on the discovery layer; while it is
+/// open it takes every key (typing goes to the search, or to the review) and covers the game.
 /// </summary>
 internal sealed class VocabularyScreen
 {
@@ -18,9 +19,27 @@ internal sealed class VocabularyScreen
         Frequency
     }
 
-    // Null is the "All" tab: every saved word, whatever its state.
-    private static readonly WordState?[] Tabs =
-        [null, WordState.Learning, WordState.Recognised, WordState.Known, WordState.LookedUp, WordState.Seen, WordState.Ignored];
+    private sealed record TabDef(Func<string> Name, Func<WordRecord, bool> Filter, bool Worth = false);
+
+    private static readonly TabDef[] Tabs =
+    [
+        new(() => Text("SPIRELINGO-VOCAB.all"), _ => true),
+        new(() => Text("SPIRELINGO-VOCAB.worth"), IsWorthLearning, Worth: true),
+        ..new[] { WordState.Learning, WordState.Recognised, WordState.Known, WordState.LookedUp, WordState.Seen, WordState.Ignored }
+            .Select(state => new TabDef(() => StateName(state), r => r.State == state))
+    ];
+
+    // Small words every sentence has; they are left out of Worth learning.
+    private static readonly HashSet<string> FunctionPos = ["det", "pron", "conj", "prep", "particle", "num", "intj", "contraction"];
+
+    /// <summary>
+    /// Words met or looked up but not saved yet, that carry meaning and that the game uses more than a couple of
+    /// times: the ones most worth saving next.
+    /// </summary>
+    private static bool IsWorthLearning(WordRecord record) =>
+        record.State is (WordState.Seen or WordState.LookedUp) && record.Lemma.Length > 2 &&
+        Glossary.EntriesFor(record.Lemma).FirstOrDefault() is { } entry && !FunctionPos.Contains(entry.Pos) &&
+        Glossary.Frequency(record.Lemma) >= 3;
 
     private const int MaxRows = 200;
     private const int MaxSentences = 5;
@@ -29,6 +48,9 @@ internal sealed class VocabularyScreen
     private readonly Control _root;
     private readonly Label _title;
     private readonly Button _close;
+    private readonly Button _reviewButton;
+    private readonly Container _columns;
+    private readonly ReviewPanel _review;
     private readonly List<Button> _tabs = [];
     private readonly Label _search;
     private readonly Dictionary<Sort, Button> _sorts = [];
@@ -40,7 +62,7 @@ internal sealed class VocabularyScreen
     private readonly Dictionary<WordState, Button> _chipButtons = [];
     private readonly RichTextLabel _pageBody;
 
-    private WordState? _tab;
+    private TabDef _tab = Tabs[0];
     private Sort _sort = Sort.LastMet;
     private string _query = "";
     private ulong? _searchChangedAt;
@@ -75,6 +97,9 @@ internal sealed class VocabularyScreen
         _title.AddThemeFontSizeOverride("font_size", 32);
         _title.AddThemeColorOverride("font_color", HighlightColor);
         header.AddChild(_title);
+        _reviewButton = MakeButton(fontSize: 20);
+        _reviewButton.Pressed += StartReview;
+        header.AddChild(_reviewButton);
         _close = MakeButton(fontSize: 20);
         _close.Pressed += Close;
         header.AddChild(_close);
@@ -83,6 +108,8 @@ internal sealed class VocabularyScreen
         var columns = new HBoxContainer { SizeFlagsVertical = Control.SizeFlags.ExpandFill };
         columns.AddThemeConstantOverride("separation", 24);
         layout.AddChild(columns);
+        _columns = columns;
+        _review = new ReviewPanel(layout, EndReview);
 
         // Left: tabs, search, sort and the list.
         var list = new VBoxContainer { CustomMinimumSize = new Vector2(620, 0) };
@@ -90,10 +117,10 @@ internal sealed class VocabularyScreen
         columns.AddChild(list);
 
         var tabs = new HFlowContainer();
-        foreach (var state in Tabs)
+        foreach (var def in Tabs)
         {
             var tab = MakeButton(fontSize: 17, toggle: true);
-            tab.Pressed += () => ShowTab(state);
+            tab.Pressed += () => ShowTab(def);
             _tabs.Add(tab);
             tabs.AddChild(tab);
         }
@@ -166,7 +193,8 @@ internal sealed class VocabularyScreen
         _chipButtons[WordState.Ignored].Text = Text("SPIRELINGO-DISCOVERY.state.ignore");
         _query = "";
         _root.Visible = true;
-        ShowTab(null);
+        EndReview();
+        ShowTab(Tabs[0]);
     }
 
     public void Close()
@@ -183,6 +211,11 @@ internal sealed class VocabularyScreen
     {
         if (@event is InputEventMouse) return false;
         if (@event is not InputEventKey { Pressed: true } key) return true;
+        if (_review.IsOpen)
+        {
+            _review.TakeKey(key);
+            return true;
+        }
 
         if (key.Keycode == Key.Escape)
         {
@@ -222,9 +255,23 @@ internal sealed class VocabularyScreen
     private void ShowQuery() =>
         _search.Text = _query.Length == 0 ? Text("SPIRELINGO-VOCAB.search_hint") : $"{Text("SPIRELINGO-VOCAB.search")} {_query}▏";
 
-    private void ShowTab(WordState? state)
+    private void StartReview()
     {
-        _tab = state;
+        _columns.Visible = false;
+        _review.Start();
+    }
+
+    private void EndReview()
+    {
+        _columns.Visible = true;
+        if (_root.Visible) Refresh();
+    }
+
+    private void ShowTab(TabDef def)
+    {
+        _tab = def;
+        // Worth learning is about how common a word is in the game.
+        if (def.Worth) _sort = Sort.Frequency;
         ShowQuery();
         Refresh();
     }
@@ -232,16 +279,17 @@ internal sealed class VocabularyScreen
     private void Refresh()
     {
         var saved = WordStore.All;
-        var counts = saved.GroupBy(r => r.State).ToDictionary(g => g.Key, g => g.Count());
         for (var i = 0; i < Tabs.Length; i++)
         {
-            var count = Tabs[i] is { } state ? counts.GetValueOrDefault(state) : saved.Count;
-            _tabs[i].Text = $"{(Tabs[i] is { } s ? StateName(s) : Text("SPIRELINGO-VOCAB.all"))} ({count})";
+            _tabs[i].Text = $"{Tabs[i].Name()} ({saved.Count(Tabs[i].Filter)})";
             _tabs[i].SetPressedNoSignal(Tabs[i] == _tab);
         }
         foreach (var (sort, button) in _sorts) button.SetPressedNoSignal(sort == _sort);
+        var due = WordStore.Due().Count;
+        _reviewButton.Text = Text("SPIRELINGO-VOCAB.review").Replace("{Count}", due.ToString());
+        _reviewButton.Disabled = due == 0;
 
-        var words = saved.Where(r => (_tab == null || r.State == _tab) && Matches(r.Lemma));
+        var words = saved.Where(r => _tab.Filter(r) && Matches(r.Lemma));
         words = _sort switch
         {
             Sort.Lookups => words.OrderByDescending(r => r.Lookups).ThenByDescending(r => r.LastSeen),
@@ -349,6 +397,8 @@ internal sealed class VocabularyScreen
             body.Add($"{Text("SPIRELINGO-VOCAB.first_met")} {record.FirstSeen.ToLocalTime():d} · " +
                      $"{Text("SPIRELINGO-DISCOVERY.looked_up").Replace("{Count}", record.Lookups.ToString())} · " +
                      $"{Text("SPIRELINGO-VOCAB.seen_count").Replace("{Count}", record.Seen.ToString())}");
+            if (record.ReviewDue is { } next && record.State is (WordState.Learning or WordState.Recognised))
+                body.Add($"{Text("SPIRELINGO-VOCAB.next_review")} {next.ToLocalTime():g}");
             foreach (var (date, state) in record.History.AsEnumerable().Reverse().Take(8))
                 body.Add($"[color=#{MutedColor.ToHtml(false)}]{date.ToLocalTime():g}[/color]  {StateName(state)}");
         }
@@ -376,16 +426,17 @@ internal sealed class VocabularyScreen
             var german = SentenceMatcher.SampleLine(lineRef, target: false);
             if (string.IsNullOrWhiteSpace(german) || !seen.Add(german)) continue;
             var english = SentenceMatcher.SampleLine(lineRef, target: true);
-            yield return $"• {Bold(german, Glossary.SurfacesOf(lineRef, lemma).Append(lemma))}" +
+            yield return $"• {Bold(german, Glossary.SurfacesOf(lineRef, lemma).Append(lemma), null)}" +
                          (string.IsNullOrWhiteSpace(english) ? "" : $"\n   [color=#{MutedColor.ToHtml(false)}]{Escape(english)}[/color]");
         }
     }
 
     /// <summary>
-    /// The line with every form of the word in bold.
+    /// The line with every form of the word in bold (and in <paramref name="color"/>, if given).
     /// </summary>
-    private static string Bold(string line, IEnumerable<string> surfaces)
+    internal static string Bold(string line, IEnumerable<string> surfaces, Color? color)
     {
+        var (open, close) = color is { } c ? ($"[b][color=#{c.ToHtml(false)}]", "[/color][/b]") : ("[b]", "[/b]");
         var words = surfaces.Where(s => s.Length > 0).Select(Regex.Escape).Distinct().ToList();
         if (words.Count == 0) return Escape(line);
         var pattern = new Regex($@"(?<![\p{{L}}])({string.Join("|", words)})(?![\p{{L}}])", RegexOptions.IgnoreCase);
@@ -393,7 +444,7 @@ internal sealed class VocabularyScreen
         var last = 0;
         foreach (Match m in pattern.Matches(line))
         {
-            result.Append(Escape(line[last..m.Index])).Append("[b]").Append(Escape(m.Value)).Append("[/b]");
+            result.Append(Escape(line[last..m.Index])).Append(open).Append(Escape(m.Value)).Append(close);
             last = m.Index + m.Length;
         }
         return result.Append(Escape(line[last..])).ToString();
