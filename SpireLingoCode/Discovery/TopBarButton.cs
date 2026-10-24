@@ -1,12 +1,14 @@
 using Godot;
 using HarmonyLib;
+using MegaCrit.Sts2.Core.Combat;
 using MegaCrit.Sts2.Core.Nodes.CommonUi;
 
 namespace SpireLingo.SpireLingoCode.Discovery;
 
 /// <summary>
-/// During a run, the discovery button sits in the game's top bar, just before the map button, a little smaller
-/// than it (like the bar's other icons with their padding) and centred on it.
+/// During a fight, the discovery button sits in the game's top bar, just before the map button, a little smaller
+/// than it (like the bar's other icons with their padding) and centred on it. Elsewhere it is hidden (F8 works
+/// everywhere).
 /// It is added to the map button's own box container, so the bar lays it out with the timer, map and deck.
 /// </summary>
 [HarmonyPatch(typeof(NTopBar), nameof(NTopBar._Ready))]
@@ -56,7 +58,8 @@ static class TopBarButton
     }
 
     /// <summary>
-    /// Keeps the button at 80% of the map button's height (known only after layout) and shown per the setting.
+    /// Keeps the button at 80% of the map button's height (known only after layout), shown during fights per the
+    /// setting.
     /// Returns whether it is on screen.
     /// </summary>
     internal static bool Update()
@@ -66,7 +69,7 @@ static class TopBarButton
             Button = null;
             return false;
         }
-        Button.Visible = SpireLingoConfig.ShowDiscoveryButton;
+        Button.Visible = SpireLingoConfig.ShowDiscoveryButton && CombatManager.Instance is { IsInProgress: true };
         if (_map != null && GodotObject.IsInstanceValid(_map) && _map.Size.Y > 0)
         {
             var size = new Vector2(_map.Size.Y, _map.Size.Y) * 0.8f;

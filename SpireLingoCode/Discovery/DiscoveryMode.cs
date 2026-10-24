@@ -27,7 +27,6 @@ public partial class DiscoveryMode : CanvasLayer
     private PanelContainer _badge = null!;
     private Label _badgeLabel = null!;
     private Button _badgeVocabulary = null!;
-    private Button _cornerButton = null!;
     private VocabularyScreen _vocabulary = null!;
     private PanelContainer _popup = null!;
     private Label _popupWord = null!;
@@ -89,7 +88,6 @@ public partial class DiscoveryMode : CanvasLayer
         AddChild(_badge);
 
         BuildPopup();
-        BuildCornerButton();
         _vocabulary = new VocabularyScreen(this);
     }
 
@@ -99,7 +97,7 @@ public partial class DiscoveryMode : CanvasLayer
         if (GetParent() is { } parent && GetIndex() != parent.GetChildCount() - 1) parent.MoveChild(this, -1);
         WordStore.Tick();
         _vocabulary.Tick();
-        UpdateCornerButton();
+        TopBarButton.Update();
         if (!IsActive) return;
 
         TipKeeper.Update(GetViewport().GetMousePosition(), _selected is { } selected && GodotObject.IsInstanceValid(selected.Label) ? selected.Label : null);
@@ -239,7 +237,7 @@ public partial class DiscoveryMode : CanvasLayer
 
     private bool OverOwnButton(Vector2 mouse)
     {
-        if (new Control[] { _popup, _badge, _cornerButton }.Any(c => c.Visible && c.GetGlobalRect().HasPoint(mouse))) return true;
+        if (new Control[] { _popup, _badge }.Any(c => c.Visible && c.GetGlobalRect().HasPoint(mouse))) return true;
         // The top bar button lives in the game's tree, possibly on another canvas layer.
         return TopBarButton.Button is { } button && GodotObject.IsInstanceValid(button) && button.IsVisibleInTree() &&
                new Rect2(Vector2.Zero, button.Size).HasPoint(button.GetGlobalTransformWithCanvas().AffineInverse() * mouse);
@@ -250,43 +248,6 @@ public partial class DiscoveryMode : CanvasLayer
     /// </summary>
     internal static string KeyName() => ToggleKey.ToString();
 
-    private const float CornerSize = 56;
-
-    /// <summary>
-    /// Where there is no top bar to hold the discovery button (the main menu and other screens outside a run),
-    /// it sits beside the main menu's patch notes button, or in the top-right corner, the size of a top bar icon.
-    /// </summary>
-    private void BuildCornerButton()
-    {
-        _cornerButton = MakeButton(fontSize: 16);
-        if (MagnifierIcon() is { } icon)
-        {
-            _cornerButton.Icon = icon;
-            _cornerButton.ExpandIcon = true;
-            _cornerButton.Flat = true;
-        }
-        _cornerButton.CustomMinimumSize = new Vector2(CornerSize, CornerSize);
-        _cornerButton.PivotOffset = new Vector2(CornerSize, CornerSize) / 2;
-        GrowOnHover(_cornerButton);
-        AttachDiscoveryTip(_cornerButton, KeyName);
-        _cornerButton.Pressed += Toggle;
-        AddChild(_cornerButton);
-    }
-
-    private void UpdateCornerButton()
-    {
-        var inTopBar = TopBarButton.Update();
-        // Not on the main menu, where it distracts; F8 still works there.
-        var onMainMenu = MainMenuButton.PatchNotes is { } notes && GodotObject.IsInstanceValid(notes) && notes.IsVisibleInTree();
-        var show = SpireLingoConfig.ShowDiscoveryButton && !inTopBar && !onMainMenu && !_vocabulary.IsOpen;
-        if (_cornerButton.Visible != show) _cornerButton.Visible = show;
-        if (!show) return;
-        _cornerButton.Position = CornerPosition();
-        // Without the icon the button needs a label, which can only be read once the game's text is loaded.
-        if (_cornerButton.Icon == null && _cornerButton.Text.Length == 0) _cornerButton.Text = Text("SPIRELINGO-DISCOVERY.button", "");
-    }
-
-    private Vector2 CornerPosition() => new(GetViewport().GetVisibleRect().Size.X - CornerSize - 16, 16);
 
     private void Select(FoundWord? word)
     {
