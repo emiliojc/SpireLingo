@@ -276,7 +276,9 @@ public partial class DiscoveryMode : CanvasLayer
     private void UpdateCornerButton()
     {
         var inTopBar = TopBarButton.Update();
-        var show = SpireLingoConfig.ShowDiscoveryButton && !inTopBar && !_vocabulary.IsOpen;
+        // Not on the main menu, where it distracts; F8 still works there.
+        var onMainMenu = MainMenuButton.PatchNotes is { } notes && GodotObject.IsInstanceValid(notes) && notes.IsVisibleInTree();
+        var show = SpireLingoConfig.ShowDiscoveryButton && !inTopBar && !onMainMenu && !_vocabulary.IsOpen;
         if (_cornerButton.Visible != show) _cornerButton.Visible = show;
         if (!show) return;
         _cornerButton.Position = CornerPosition();
@@ -284,19 +286,7 @@ public partial class DiscoveryMode : CanvasLayer
         if (_cornerButton.Icon == null && _cornerButton.Text.Length == 0) _cornerButton.Text = Text("SPIRELINGO-DISCOVERY.button", "");
     }
 
-    /// <summary>
-    /// Left of the patch notes button when it is showing (so the two don't overlap on the main menu), otherwise
-    /// the top-right corner.
-    /// </summary>
-    private Vector2 CornerPosition()
-    {
-        if (MainMenuButton.PatchNotes is { } notes && GodotObject.IsInstanceValid(notes) && notes.IsVisibleInTree())
-        {
-            var rect = notes.GetGlobalTransformWithCanvas() * new Rect2(Vector2.Zero, notes.Size);
-            return new Vector2(rect.Position.X - CornerSize - 12, rect.GetCenter().Y - CornerSize / 2);
-        }
-        return new Vector2(GetViewport().GetVisibleRect().Size.X - CornerSize - 16, 16);
-    }
+    private Vector2 CornerPosition() => new(GetViewport().GetVisibleRect().Size.X - CornerSize - 16, 16);
 
     private void Select(FoundWord? word)
     {
