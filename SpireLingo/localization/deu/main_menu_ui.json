@@ -1,3 +1,4 @@
 {
-  "SPIRELINGO_VOCABULARY": "Wortschatz"
+  "SPIRELINGO_VOCABULARY.title": "Wortschatz",
+  "SPIRELINGO_VOCABULARY.description": "Deine gespeicherten Wörter mit Bedeutungen, den Sätzen aus dem Spiel, in denen du sie getroffen hast, und Wiederholungen."
 }
