@@ -3,6 +3,22 @@
 All notable changes to SpireLingo. Versions follow [Semantic Versioning](https://semver.org/); the version
 lives in `SpireLingo.json` and is copied into the DLL at build time.
 
+## 0.8.3 - 2026-10-24
+
+### Changed
+- The magnifier shows only during fights, in the top bar. It no longer appears on the map, in events, shops,
+  menus or anywhere else; F8 still turns discovery mode on everywhere.
+- The Kompendium's Wortschatz button looks like Run-Historie (its style and book icon) and sits at the end of
+  the bottom row, after Charakter-Statistik and Run-Historie, which keep their usual places.
+
+## 0.8.2 - 2026-10-24
+
+### Fixed
+- Discovery mode works in the Ancient's room at the start of each act (where you choose a boon): an empty or
+  faded-out label lying over the dialogue no longer hides the words under it. Labels on top are now passed over
+  only where they are see-through (no text, faded out, or the mouse is outside their text); a card or tooltip
+  still hides the text behind it.
+
 ## 0.8.1 - 2026-10-24
 
 ### Changed

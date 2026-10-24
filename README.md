@@ -6,7 +6,7 @@ Example: with the game set to German and the target language set to English, hov
 
 **Discovery mode**: press **F8** (configurable) to pause input and dim the screen, then point at any word on screen (cards, tooltips, events, dialogue, menus) to highlight it and click it for a popup. The popup shows the word's base form (with article and plural for nouns), its English meanings, the parts of compound words, and for separable verbs like "Füge … zu" (zufügen) the other half of the verb, marked on screen. A "Show sentence" button shows the whole sentence in the target language. Press F8 again or Esc to leave. Word meanings are currently German to English.
 
-**Vocabulary**: every word you click is saved with its state (Learning, Known, Ignore, or looked up/seen automatically). Open the Vocabulary screen from the Compendium or the discovery badge to browse all your words or one state at a time, search them, and read each word's page with all its meanings, an example, and the game sentences you met it in. The "Review" button there goes through the words you are learning with real game sentences, and brings each word back after 1, 3, 7 and 21 days until it is Known; the "Worth learning" tab suggests what to save next. In discovery mode, your saved words are underlined by state (orange for Learning, green for Known, teal for Recognised, grey for Looked up), so you can see how much of a card you can already read. A magnifier button in the top bar during a run (or the top-right corner on other screens; not on the main menu, where F8 works) also turns discovery mode on.
+**Vocabulary**: every word you click is saved with its state (Learning, Known, Ignore, or looked up/seen automatically). Open the Vocabulary screen from the Kompendium (Wortschatz, at the end of the bottom row) or the discovery badge to browse all your words or one state at a time, search them, and read each word's page with all its meanings, an example, and the game sentences you met it in. The "Review" button there goes through the words you are learning with real game sentences, and brings each word back after 1, 3, 7 and 21 days until it is Known; the "Worth learning" tab suggests what to save next. In discovery mode, your saved words are underlined by state (orange for Learning, green for Known, teal for Recognised, grey for Looked up), so you can see how much of a card you can already read. During fights, a magnifier button in the top bar also turns discovery mode on (F8 works everywhere).
 
 See [CHANGELOG.md](CHANGELOG.md) for what changed in each version.
 
@@ -21,7 +21,7 @@ In the mod config menu (from BaseLib):
 - **Show translation on**: turn the tooltip on or off for cards, relics, potions, powers and enemy intents.
 - **Discovery key**: the key that turns discovery mode on and off (default F8). F2 isn't offered because the game opens its feedback screen with it.
 - **Discovery dimming**: how much the screen darkens in discovery mode (0 to 0.5, default 0.2).
-- **Discovery button**: show the magnifier button that turns discovery mode on (default on).
+- **Discovery button**: show the magnifier button in the top bar during fights (default on).
 - **Word state colours**: in discovery mode, underline saved words by state (default on).
 
 The tooltip only appears when the game's language is different from the target language.
