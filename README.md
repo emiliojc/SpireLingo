@@ -82,6 +82,15 @@ Word meanings are from [English Wiktionary](https://en.wiktionary.org/), extract
 
 ## Roadmap
 
-1. Translation tooltip.
-2. Discovery mode: click any word on screen for its meaning, with an offline glossary built from the game's text (this version).
-3. Saved vocabulary list with Anki export.
+Done:
+
+1. Translation tooltips.
+2. Discovery mode: click any word on screen for its meaning, with an offline glossary built from the game's text.
+3. Saved words with states, the vocabulary screen, state underlines and spaced reviews.
+
+Next:
+
+4. Usage tips and related words on each word's page.
+5. Anki export of saved words.
+6. Other language pairs: choose the translation language (English today) and the game's language (German today), with a glossary for each pair.
+7. Publishing on the Steam Workshop.

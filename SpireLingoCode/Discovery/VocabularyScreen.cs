@@ -193,6 +193,8 @@ internal sealed class VocabularyScreen
         _chipButtons[WordState.Ignored].Text = Text("SPIRELINGO-DISCOVERY.state.ignore");
         _query = "";
         _root.Visible = true;
+        // The screen always opens on the list; a review starts only from its button.
+        _review.Hide();
         EndReview();
         ShowTab(Tabs[0]);
     }
@@ -200,6 +202,7 @@ internal sealed class VocabularyScreen
     public void Close()
     {
         _root.Visible = false;
+        _review.Hide();
         WordStore.Flush();
     }
 
