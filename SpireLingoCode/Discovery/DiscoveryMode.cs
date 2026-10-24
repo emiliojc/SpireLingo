@@ -486,7 +486,11 @@ public partial class DiscoveryMode : CanvasLayer
         _learningChip.SetPressedNoSignal(state == WordState.Learning);
         _knownChip.SetPressedNoSignal(state == WordState.Known);
         _ignoreChip.SetPressedNoSignal(state == WordState.Ignored);
-        _lookupCount.Text = _record == null ? "" : Text("SPIRELINGO-DISCOVERY.looked_up").Replace("{Count}", _record.Lookups.ToString());
+        // From the third look-up of a word that isn't saved, the counter suggests saving it.
+        var suggest = _record is { Lookups: >= 3, State: WordState.Seen or WordState.LookedUp };
+        _lookupCount.Text = _record == null ? "" :
+            Text(suggest ? "SPIRELINGO-DISCOVERY.save_hint" : "SPIRELINGO-DISCOVERY.looked_up").Replace("{Count}", _record.Lookups.ToString());
+        _lookupCount.AddThemeColorOverride("font_color", suggest ? HighlightColor : new Color(0.6f, 0.6f, 0.6f));
     }
 
     /// <summary>

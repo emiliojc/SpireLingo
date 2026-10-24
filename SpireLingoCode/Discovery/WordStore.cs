@@ -25,6 +25,11 @@ internal sealed class WordRecord
     public WordState State { get; set; }
     public int Lookups { get; set; }
     public int Seen { get; set; }
+
+    /// <summary>
+    /// Times the word was met while reading since it was last looked up.
+    /// </summary>
+    public int SeenSinceLookup { get; set; }
     public DateTime FirstSeen { get; set; }
     public DateTime LastSeen { get; set; }
 
@@ -49,6 +54,17 @@ internal sealed class WordRecord
 internal static class WordStore
 {
     private const int MaxContexts = 5;
+
+    // Days until the next review after each review passed in a row: 1, 3, 7, then 21.
+    private static readonly int[] ReviewDays = [1, 3, 7, 21];
+
+    // A new word is reviewed at once, then after 1, 3, 7 and 21 days. Passing the 7-day review (the fourth in a
+    // row) makes it Recognised; passing the 21-day one makes it Known.
+    private const int RecognisedAfter = 4;
+    private const int KnownAfter = 5;
+
+    // A Learning word met this often while reading, without a look-up, is Recognised.
+    private const int RecognisedAfterSeen = 8;
     private const ulong SaveDelayMs = 1000;
 
     private static readonly Dictionary<string, WordRecord> Words = new(StringComparer.Ordinal);
@@ -82,6 +98,7 @@ internal static class WordStore
     {
         var record = Touch(lemma, context);
         record.Lookups++;
+        record.SeenSinceLookup = 0;
         switch (record.State)
         {
             case WordState.Seen:
@@ -100,7 +117,47 @@ internal static class WordStore
     /// </summary>
     public static void RecordSeen(string lemma, string? context)
     {
-        Touch(lemma, context).Seen++;
+        var record = Touch(lemma, context);
+        record.Seen++;
+        record.SeenSinceLookup++;
+        // Reading it again and again without looking it up means it is being recognised.
+        if (record.State == WordState.Learning && record.SeenSinceLookup >= RecognisedAfterSeen) SetState(record, WordState.Recognised);
+        MarkDirty();
+    }
+
+    /// <summary>
+    /// Saved words due for review: Learning and Recognised words whose review date has come (new ones at once),
+    /// soonest first.
+    /// </summary>
+    public static List<WordRecord> Due()
+    {
+        var now = DateTime.UtcNow;
+        return All.Where(r => r.State is (WordState.Learning or WordState.Recognised) && (r.ReviewDue == null || r.ReviewDue <= now))
+            .OrderBy(r => r.ReviewDue ?? DateTime.MinValue)
+            .ToList();
+    }
+
+    /// <summary>
+    /// The result of reviewing a word. Knowing it moves the next review further out (1, 3, 7, then 21 days) and
+    /// eventually to Recognised and Known; not knowing it brings it back tomorrow, as Learning.
+    /// </summary>
+    public static void Review(WordRecord record, bool knew)
+    {
+        var now = DateTime.UtcNow;
+        if (knew)
+        {
+            record.ReviewStreak++;
+            record.ReviewInterval = ReviewDays[Math.Min(record.ReviewStreak, ReviewDays.Length) - 1];
+            if (record.ReviewStreak >= KnownAfter) SetState(record, WordState.Known);
+            else if (record.ReviewStreak >= RecognisedAfter) SetState(record, WordState.Recognised);
+        }
+        else
+        {
+            record.ReviewStreak = 0;
+            record.ReviewInterval = ReviewDays[0];
+            if (record.State == WordState.Recognised) SetState(record, WordState.Learning);
+        }
+        record.ReviewDue = record.State == WordState.Known ? null : now.AddDays(record.ReviewInterval);
         MarkDirty();
     }
 
@@ -109,6 +166,13 @@ internal static class WordStore
     /// </summary>
     public static void Choose(WordRecord record, WordState state)
     {
+        // A word saved for learning starts its reviews from the beginning, due right away.
+        if (state == WordState.Learning && record.State != WordState.Learning)
+        {
+            record.ReviewStreak = 0;
+            record.ReviewInterval = 0;
+            record.ReviewDue = null;
+        }
         SetState(record, state);
         MarkDirty();
     }
@@ -222,6 +286,7 @@ internal static class WordStore
                 json.WriteString("state", Name(record.State));
                 json.WriteNumber("lookups", record.Lookups);
                 json.WriteNumber("seen", record.Seen);
+                json.WriteNumber("seenSinceLookup", record.SeenSinceLookup);
                 json.WriteString("firstSeen", record.FirstSeen);
                 json.WriteString("lastSeen", record.LastSeen);
                 json.WriteStartArray("contexts");
@@ -262,6 +327,7 @@ internal static class WordStore
                 State = Parse(w.GetProperty("state").GetString()),
                 Lookups = w.TryGetProperty("lookups", out var lookups) ? lookups.GetInt32() : 0,
                 Seen = w.TryGetProperty("seen", out var seen) ? seen.GetInt32() : 0,
+                SeenSinceLookup = w.TryGetProperty("seenSinceLookup", out var since) ? since.GetInt32() : 0,
                 FirstSeen = w.TryGetProperty("firstSeen", out var first) ? first.GetDateTime() : DateTime.UtcNow,
                 LastSeen = w.TryGetProperty("lastSeen", out var last) ? last.GetDateTime() : DateTime.UtcNow
             };

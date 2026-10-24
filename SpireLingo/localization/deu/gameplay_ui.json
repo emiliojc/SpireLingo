@@ -51,5 +51,17 @@
   "SPIRELINGO-VOCAB.state.ignored": "Ignoriert",
   "SPIRELINGO-VOCAB.all": "Alle",
   "SPIRELINGO-DISCOVERY.button_title": "Entdecken ({Hotkey})",
-  "SPIRELINGO-DISCOVERY.button_desc": "Klicke auf ein beliebiges Wort, um es nachzuschlagen."
+  "SPIRELINGO-DISCOVERY.button_desc": "Klicke auf ein beliebiges Wort, um es nachzuschlagen.",
+  "SPIRELINGO-DISCOVERY.save_hint": "{Count}× nachgeschlagen – speichern?",
+  "SPIRELINGO-VOCAB.worth": "Lohnt sich",
+  "SPIRELINGO-VOCAB.review": "Wiederholen ({Count})",
+  "SPIRELINGO-VOCAB.next_review": "Nächste Wiederholung:",
+  "SPIRELINGO-REVIEW.progress": "Wort {Done} von {Total}",
+  "SPIRELINGO-REVIEW.prompt": "Was bedeutet „{Word}“ hier?",
+  "SPIRELINGO-REVIEW.show": "Antwort zeigen (Leertaste)",
+  "SPIRELINGO-REVIEW.knew": "Gewusst (1)",
+  "SPIRELINGO-REVIEW.didnt": "Nicht gewusst (2)",
+  "SPIRELINGO-REVIEW.end": "Beenden (Esc)",
+  "SPIRELINGO-REVIEW.none": "Gerade gibt es nichts zu wiederholen. Wörter, die du auf „Lerne ich“ setzt, kommen zur Wiederholung.",
+  "SPIRELINGO-REVIEW.done": "Fertig: {Knew} gewusst, {Didnt} zum Üben. Nächste Wiederholung: {Next}."
 }

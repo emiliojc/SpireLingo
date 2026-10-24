@@ -51,5 +51,17 @@
   "SPIRELINGO-VOCAB.state.ignored": "Ignored",
   "SPIRELINGO-VOCAB.all": "All",
   "SPIRELINGO-DISCOVERY.button_title": "Discover ({Hotkey})",
-  "SPIRELINGO-DISCOVERY.button_desc": "Click any word on screen to look it up."
+  "SPIRELINGO-DISCOVERY.button_desc": "Click any word on screen to look it up.",
+  "SPIRELINGO-DISCOVERY.save_hint": "looked up {Count}× – save it?",
+  "SPIRELINGO-VOCAB.worth": "Worth learning",
+  "SPIRELINGO-VOCAB.review": "Review ({Count})",
+  "SPIRELINGO-VOCAB.next_review": "Next review:",
+  "SPIRELINGO-REVIEW.progress": "Word {Done} of {Total}",
+  "SPIRELINGO-REVIEW.prompt": "What does „{Word}“ mean here?",
+  "SPIRELINGO-REVIEW.show": "Show answer (Space)",
+  "SPIRELINGO-REVIEW.knew": "Knew it (1)",
+  "SPIRELINGO-REVIEW.didnt": "Didn't (2)",
+  "SPIRELINGO-REVIEW.end": "End review (Esc)",
+  "SPIRELINGO-REVIEW.none": "Nothing to review right now. Words you mark Learning come up for review.",
+  "SPIRELINGO-REVIEW.done": "Done: {Knew} known, {Didnt} to practise again. Next review: {Next}."
 }
