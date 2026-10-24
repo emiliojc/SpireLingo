@@ -61,9 +61,24 @@ GAME_TERMS = {
     "MSAA": {"pos": "noun", "senses": ["MSAA, multisample anti-aliasing"]},
     "ESC": {"pos": "noun", "senses": ["Esc, the Escape key"]},
     "FTL": {"pos": "noun", "senses": ["FTL, faster than light"]},
+    "Buff": {"pos": "noun", "gender": "m", "plural": "Buffs", "senses": ["buff (a power that helps whoever has it)"]},
+    "Debuff": {"pos": "noun", "gender": "m", "plural": "Debuffs", "senses": ["debuff (a power that hurts whoever has it)"]},
+    "Fogl": {"pos": "noun", "gender": "m", "plural": "Fogl",
+             "senses": ["Byrd (the game's bird creatures; a play on Vogel, bird)"]},
+    "Foglonis": {"pos": "name", "senses": ["Byrdonis (a huge Byrd, an elite enemy)"]},
+    "Foglpip": {"pos": "name", "senses": ["Byrdpip (a small Byrd)"]},
+    "Foglgeist": {"pos": "noun", "gender": "m", "plural": "Foglgeister", "senses": ["Byrd spirit (Fogl + Geist, ghost)"]},
+    "schlurfen": {"pos": "verb", "senses": ["to shuffle, to shamble (to walk dragging the feet)"]},
+    "schlurfend": {"pos": "adj", "senses": ["shuffling, shambling (from schlurfen)"]},
+    "davonjagen": {"pos": "verb", "senses": ["to chase away, to chase off (davon + jagen)"]},
 }
 # Spellings of the game terms in the text ("ORBS" in dialogue, "tP" after sentence-start lowercasing).
-GAME_TERM_FORMS = {"tp": "TP", "orb": "Orb", "orbs": "Orb", "fps": "FPS", "msaa": "MSAA", "esc": "ESC", "ftl": "FTL"}
+GAME_TERM_FORMS = {"tp": "TP", "orb": "Orb", "orbs": "Orb", "fps": "FPS", "msaa": "MSAA", "esc": "ESC", "ftl": "FTL",
+                   "buff": "Buff", "buffs": "Buff", "debuff": "Debuff", "debuffs": "Debuff", "fogl": "Fogl",
+                   "foglonis": "Foglonis", "foglpip": "Foglpip", "foglgeister": "Foglgeist",
+                   "schlurfend": "schlurfend", "schlurfende": "schlurfend", "schlurfendes": "schlurfend",
+                   "schlurfenden": "schlurfend", "schlurfender": "schlurfend", "davonjagt": "davonjagen",
+                   "davonjagen": "davonjagen"}
 # The game's meaning of an ordinary word, shown before Wiktionary's senses ("in einem Zug" = in one turn).
 GAME_SENSES = {
     "Zug": "turn (in a fight)",
@@ -500,7 +515,7 @@ def build(pck, kaikki_path, model_name):
         if full in glossary:
             forms[short] = [full]
 
-    add_game_terms(glossary, forms, sentences)
+    add_game_terms(glossary, forms, sentences, compounds)
     rank_related(glossary, sentences)
 
     coverage = sum(1 for w in surface_counts if known(w) or w.lower() in form_of or w.lower() in compounds
@@ -517,11 +532,13 @@ def build(pck, kaikki_path, model_name):
     return glossary, forms, compounds, sentences, report, surface_counts
 
 
-def add_game_terms(glossary, forms, sentences):
+def add_game_terms(glossary, forms, sentences, compounds):
     """Puts the game's own abbreviations and meanings in place of what Wiktionary and spaCy made of them."""
     for lemma, entry in GAME_TERMS.items():
         glossary[lemma] = [entry]
     for word, lemma in GAME_TERM_FORMS.items():
+        # A wrong split ("Schlurfendes" as "Schlurfen" + "Des") would win over the game term.
+        compounds.pop(word, None)
         replaced = forms.pop(word, [])
         forms[word] = [lemma]
         # Drop entries only reachable through the wrong reading ("Object Request Broker").
@@ -623,7 +640,7 @@ def main():
     if args.game_terms_only:
         glossary_data = json.loads((OUT_DIR / "glossary_deu_eng.json").read_text(encoding="utf-8"))
         sentence_data = json.loads((OUT_DIR / "sentences_deu.json").read_text(encoding="utf-8"))
-        add_game_terms(glossary_data["entries"], glossary_data["forms"], sentence_data["lines"])
+        add_game_terms(glossary_data["entries"], glossary_data["forms"], sentence_data["lines"], glossary_data["compounds"])
         write(OUT_DIR / "glossary_deu_eng.json", glossary_data)
         write(OUT_DIR / "sentences_deu.json", sentence_data)
         return

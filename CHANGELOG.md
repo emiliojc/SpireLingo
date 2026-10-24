@@ -3,6 +3,16 @@
 All notable changes to SpireLingo. Versions follow [Semantic Versioning](https://semver.org/); the version
 lives in `SpireLingo.json` and is copied into the DLL at build time.
 
+## 0.8.1 - 2026-10-24
+
+### Changed
+- The Wortschatz (Vocabulary) button moved from the main menu into the Kompendium.
+
+### Fixed
+- Game words the glossary had wrong or missing: Buff and Debuff are the game's powers (not "Puff" or a neck
+  gaiter), Fogl is the game's Byrd (with Foglonis, Foglpip and Foglgeist), "schlurfendes" is schlurfend
+  (shuffling) instead of a split into "Schlurfen" + "Des", and "davonjagt" is davonjagen (to chase off).
+
 ## 0.8.0 - 2026-10-24
 
 ### Changed
