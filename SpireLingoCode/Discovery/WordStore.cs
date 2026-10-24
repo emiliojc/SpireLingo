@@ -105,6 +105,10 @@ internal static class WordStore
                 SetState(record, WordState.LookedUp);
                 break;
             case WordState.Recognised or WordState.Known:
+                // Its reviews start over, due right away, rather than carrying on toward Known.
+                record.ReviewStreak = 0;
+                record.ReviewInterval = 0;
+                record.ReviewDue = null;
                 SetState(record, WordState.Learning);
                 break;
         }
